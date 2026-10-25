@@ -27,6 +27,6 @@ shinki-emu-build = { git = "https://github.com/Project-Shinkirou/ShinkiEMU", rev
 
 [package.metadata.shinki]
 upstream = "https://github.com/xmoezzz/rfvp"
-upstream_revision = "af557db750c7833274f22a6d82b0dc33cdea2f85"
+upstream_revision = "99435f22e94eaec27c0c1b9f22cc2a6b1910d7d1"
 license_notice = "THIRD_PARTY_NOTICES.md"
 modifications = "MODIFICATIONS.md"

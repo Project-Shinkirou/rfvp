@@ -4,6 +4,8 @@
 
 本仓库为 [`xmoezzz/rfvp`](https://github.com/xmoezzz/rfvp) 的完整 fork，发布分支为 [`Project-Shinkirou/rfvp@shinki`](https://github.com/Project-Shinkirou/rfvp/tree/shinki)。通用基线为 `3359d8fbea3c53d6d262a9f71b6d4d79888c2368`，上游历史基线为 `af557db750c7833274f22a6d82b0dc33cdea2f85`，crate 版本 0.6.0。变更分类见 [MODIFICATIONS.md](MODIFICATIONS.md)。
 
+`shinki-latest` 在上述历史上合并稳定发布 `0.7.0`（`99435f22e94eaec27c0c1b9f22cc2a6b1910d7d1`），保留覆盖源码及既有许可。
+
 完整 MPL-2.0 许可位于仓库根 [`LICENSE`](../../LICENSE)。发行 `shinki_emu_rfvp.dll` 时须保留与二进制对应的覆盖源码（或有效的 source offer）、该许可与本目录的变更记录，不以旧已发布基线替代当前二进制实际使用的源码。
 
 适配包只提供 C ABI v3 注册、原生 owner、CPU lease 与渲染尺寸换算，复用原 App、VM、GPU、视频、设备音频和 V1/RFVS 保存，没有 Host advance 或 PCM sink。
