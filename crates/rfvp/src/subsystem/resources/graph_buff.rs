@@ -83,6 +83,9 @@ pub struct GraphBuff {
     /// CPU pixels are byte-identical to decoding `texture_path` (no GraphRGB / parts overlay
     /// has modified them), so they can be dropped and re-decoded from the VFS on demand.
     cpu_pristine: bool,
+    /// A parts overlay was drawn into the pixels. Unlike GraphRGB, which a restore replays from
+    /// the saved r/g/b, the V1 snapshot cannot replay this, so these pixels are saved as-is.
+    cpu_overlaid: bool,
     /// CPU pixels were dropped after the GPU upload (see `evict_cpu_pixels`).
     cpu_evicted: bool,
     /// Alpha coverage (1 bit per pixel) kept for hit tests while CPU pixels are evicted.
@@ -117,6 +120,7 @@ impl GraphBuff {
             generation: 0,
             load_kind: GraphBuffLoadKind::Unknown,
             cpu_pristine: false,
+            cpu_overlaid: false,
             cpu_evicted: false,
             hit_mask: None,
             evicted_dims: (0, 0),
@@ -140,6 +144,13 @@ impl GraphBuff {
     pub fn mark_pixels_modified(&mut self) {
         self.cpu_pristine = false;
         self.mark_dirty();
+    }
+
+    /// Mark CPU pixels as covered by a parts overlay (see `cpu_overlaid`).
+    #[inline]
+    pub fn mark_pixels_overlaid(&mut self) {
+        self.cpu_overlaid = true;
+        self.mark_pixels_modified();
     }
 
     pub fn get_r_value(&self) -> u8 {
@@ -418,6 +429,7 @@ impl GraphBuff {
         self.text_raster_scale = 0.0;
         self.load_kind = GraphBuffLoadKind::Unknown;
         self.cpu_pristine = false;
+        self.cpu_overlaid = false;
         self.cpu_evicted = false;
         self.hit_mask = None;
         self.mark_dirty();
@@ -1345,6 +1357,7 @@ impl GraphBuff {
             self.u = snap.u;
             self.v = snap.v;
             self.texture_path = snap.texture_path.clone();
+            self.cpu_overlaid = !snap.texture_path.is_empty();
             self.texture_ready = snap.texture_ready;
             self.load_kind = snap.load_kind;
             self.mark_dirty();

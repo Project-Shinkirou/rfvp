@@ -480,5 +480,6 @@ impl VmRunner {
 
 }
 
-#[cfg(test)]
+#[cfg(all(test, not(feature = "no_std")))]
+#[path = "vm_runner/tests.rs"]
 mod tests;

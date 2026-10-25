@@ -269,11 +269,12 @@ impl RenderTarget {
         self.logical_size
     }
 
-    pub fn copy_to(&self, encoder: &mut wgpu::CommandEncoder, target: &Self) {
-        assert_eq!(self.size, target.size, "render target copy dimensions");
+    /// Encode a copy of this target's pixels into `dst`, which has the same backing size.
+    pub fn encode_copy_to(&self, encoder: &mut wgpu::CommandEncoder, dst: &RenderTarget) {
+        assert_eq!(self.size, dst.size, "render target copy dimensions");
         encoder.copy_texture_to_texture(
             self.texture.as_image_copy(),
-            target.texture.as_image_copy(),
+            dst.texture.as_image_copy(),
             wgpu::Extent3d {
                 width: self.size.0,
                 height: self.size.1,
