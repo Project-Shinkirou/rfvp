@@ -511,7 +511,7 @@ static API: CoreApi = CoreApi {
 /// Dynamic and static registration use the same table and lifecycle.
 /// # Safety
 /// `output` is writable storage for a single table pointer.
-#[cfg_attr(feature = "dynamic-plugin-export", no_mangle)]
+#[cfg_attr(feature = "dynamic-plugin-export", unsafe(no_mangle))]
 pub unsafe extern "C" fn shinki_emu_query(version: u32, output: *mut *const CoreApi) -> Status {
     if output.is_null() {
         return INVALID_ARGUMENT;
