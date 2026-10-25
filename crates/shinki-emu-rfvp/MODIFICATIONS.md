@@ -55,6 +55,8 @@ cargo xtask build --target x86_64-pc-windows-msvc --core rfvp --release
 
 独立构建使用 `cargo build --locked --release -p shinki-emu-rfvp --features dynamic-plugin-export`，并设置 `ROUKAKU_SUBTITLE_VCPKG_ROOT`，指向安装了 overlay triplet `x64-windows-static-md-dynbidi` 的独立 vcpkg 树。产物为所选 Cargo target 目录内的 `shinki_emu_rfvp.dll`，导出 `shinki_emu_query`。
 
+Apple 构建继续使用 `rlib`（iOS 静态嵌入）及 `cdylib`（macOS `.dylib`）。只有 `dynamic-plugin-export` 导出未修饰的查询符号；静态嵌入直接调用 Rust 路径。字幕使用同一固定版本 libass 0.17.5 的目标专属静态 vcpkg 安装；WMV/MPEG 解码器为 Rust 原生实现，Apple 不需要 GStreamer。
+
 运行需要兼容 C ABI v3 的 Release Manager、x64 Windows 系统组件、VC++ 运行库及可用 GPU/音频驱动。静态导入包括 `VCRUNTIME140.dll`、UCRT、`mfplat.dll`（Media Foundation）、`d3dcompiler_47.dll`，以及随核心目录分发的 `fribidi-0.dll`；原生媒体实现没有 FFmpeg DLL 依赖。Vulkan 需驱动提供 loader；帧只经 CPU lease 交付。
 
 原生保存写入游戏目录下的 `save/`。字体、媒体与字幕依赖来源见 [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)。
