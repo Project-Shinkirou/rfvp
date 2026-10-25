@@ -1333,6 +1333,11 @@ impl GraphBuff {
                 }
                 _ => self.load_texture(&snap.texture_path, bytes)?,
             }
+            self.set_color_tone(
+                snap.r_value as i32,
+                snap.g_value as i32,
+                snap.b_value as i32,
+            );
 
             self.offset_x = snap.offset_x;
             self.offset_y = snap.offset_y;

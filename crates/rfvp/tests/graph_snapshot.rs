@@ -27,12 +27,13 @@ fn pixels(graph: &GraphBuff) -> Vec<u8> {
 }
 
 #[test]
-fn toned_source_is_saved_as_path_and_rgb_then_replayed() {
+fn toned_source_keeps_modified_pixels_without_reapplying_rgb() {
     let mut graph = GraphBuff::new();
     graph.load_texture("white.nvsg", source()).unwrap();
     graph.set_color_tone(50, 25, 75);
+    graph.set_color_tone(50, 25, 75);
     let saved = graph.capture_snapshot_with_id(0);
-    assert!(saved.rgba.is_none());
+    assert!(saved.rgba.is_some());
     assert_eq!((saved.r_value, saved.g_value, saved.b_value), (50, 25, 75));
 
     let mut restored = GraphBuff::new();
@@ -43,6 +44,25 @@ fn toned_source_is_saved_as_path_and_rgb_then_replayed() {
         (50, 25, 75)
     );
     assert_eq!(restored.texture_path, "white.nvsg");
+}
+
+#[test]
+fn path_only_snapshot_replays_rgb_once() {
+    let mut graph = GraphBuff::new();
+    graph.load_texture("white.nvsg", source()).unwrap();
+    let mut saved = graph.capture_snapshot_with_id(0);
+    saved.r_value = 50;
+    saved.g_value = 25;
+    saved.b_value = 75;
+    graph.set_color_tone(50, 25, 75);
+
+    let mut restored = GraphBuff::new();
+    restored.apply_snapshot_v1(&saved, &vfs()).unwrap();
+    assert_eq!(pixels(&restored), pixels(&graph));
+    assert_eq!(
+        (restored.get_r_value(), restored.get_g_value(), restored.get_b_value()),
+        (50, 25, 75)
+    );
 }
 
 #[test]
