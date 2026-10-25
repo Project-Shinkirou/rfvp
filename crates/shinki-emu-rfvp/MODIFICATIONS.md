@@ -2,6 +2,8 @@
 
 ## 来源与提交结构
 
+- `shinki-latest` 合并稳定发布 `0.7.0`（`99435f22e94eaec27c0c1b9f22cc2a6b1910d7d1`），保留已发布的 `shinki` 历史及嵌入适配。适配 crate 使用 Rust 1.98、edition 2024；上游 crate 的 edition 不变。
+- 合并保留运行时改图的保存像素、恢复后的显示尺寸、公开的文字请求取消与游戏退出回归；纹理复制统一使用上游 `encode_copy_to`，并保留尺寸校验。
 - 上游为 [`xmoezzz/rfvp`](https://github.com/xmoezzz/rfvp)，历史基线 `af557db750c7833274f22a6d82b0dc33cdea2f85`，crate 版本 0.6.0。
 - `shinki` 分支 = 通用原生修复基线 `3359d8fbea3c53d6d262a9f71b6d4d79888c2368` + 一个适配提交 `feat(shinki): ShinkiEMU C ABI v3 adapter shinki-emu-rfvp`。基线含原生生命周期修复 `7e2016a0e0ef1c0b102185914cc7a8459bb2c9e1` 与原生音频 worker 所有权接入，与适配分开。
 - 适配提交合并了此前的 C ABI v3 移植、原偏移翻译表、movie/BGM ASS 字幕、读档 epoch 修复、ABI pin 与 plugin ID 更名；合并前的历史保留在 [`1e947a5ccbd2c7a698bd30d48347454ef1b908a9`](https://github.com/Project-Shinkirou/rfvp/commit/1e947a5ccbd2c7a698bd30d48347454ef1b908a9) 等旧引用中，旧 tree 不代表当前构建源码。
