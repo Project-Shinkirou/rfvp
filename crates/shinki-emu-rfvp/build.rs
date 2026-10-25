@@ -7,6 +7,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         .join("../..")
         .canonicalize()?;
     let mut manifest = CoreBuildManifest::new("rfvp", "rust-cdylib")?;
+    if manifest.target.ends_with("-apple-darwin") {
+        println!("cargo:rustc-cdylib-link-arg=-Wl,-install_name,@rpath/libshinki_emu_rfvp.dylib");
+    }
     for path in [
         "LICENSE",
         "crates/shinki-emu-rfvp/THIRD_PARTY_NOTICES.md",
