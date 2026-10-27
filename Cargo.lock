@@ -5140,7 +5140,7 @@ dependencies = [
 [[package]]
 name = "roukaku-subtitle"
 version = "0.1.0"
-source = "git+https://github.com/Project-Shinkirou/RoukakuEngine?rev=8392cf161800f7684af7704eb95f7a5526d2015d#8392cf161800f7684af7704eb95f7a5526d2015d"
+source = "git+https://github.com/Project-Shinkirou/RoukakuEngine?rev=11c80e9b2ac1c419398f7301303691e825e5a871#11c80e9b2ac1c419398f7301303691e825e5a871"
 dependencies = [
  "cc",
  "pkg-config",
