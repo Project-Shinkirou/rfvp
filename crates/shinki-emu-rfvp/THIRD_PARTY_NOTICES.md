@@ -12,7 +12,7 @@
 
 ## ShinkiEMU 与 RoukakuEngine 组件
 
-`shinki-emu-abi`（C ABI v3）与 host-side `shinki-emu-build` 来自 [`Project-Shinkirou/ShinkiEMU@cb8d9dd22d7d0ab129085b324c94d6dc81fa19e3`](https://github.com/Project-Shinkirou/ShinkiEMU/commit/cb8d9dd22d7d0ab129085b324c94d6dc81fa19e3)，采用 MIT OR Apache-2.0。`roukaku-subtitle` 来自 [`Project-Shinkirou/RoukakuEngine@3598c63cea7d952d31499c94b1577233d370dc26`](https://github.com/Project-Shinkirou/RoukakuEngine/commit/3598c63cea7d952d31499c94b1577233d370dc26)。manifest 与 `Cargo.lock` 固定这些 git revision。
+`shinki-emu-abi`（C ABI v3）与 host-side `shinki-emu-build` 来自 [`Project-Shinkirou/ShinkiEMU@cb8d9dd22d7d0ab129085b324c94d6dc81fa19e3`](https://github.com/Project-Shinkirou/ShinkiEMU/commit/cb8d9dd22d7d0ab129085b324c94d6dc81fa19e3)，采用 MIT OR Apache-2.0。`roukaku-subtitle` 来自 [`Project-Shinkirou/RoukakuEngine@8392cf161800f7684af7704eb95f7a5526d2015d`](https://github.com/Project-Shinkirou/RoukakuEngine/commit/8392cf161800f7684af7704eb95f7a5526d2015d)。manifest 与 `Cargo.lock` 固定这些 git revision。
 
 ## ASS 字幕依赖
 
