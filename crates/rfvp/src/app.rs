@@ -1171,13 +1171,14 @@ impl App {
         let output = match &self.surface {
             PresentationTarget::Embedded(_) => None,
             PresentationTarget::Window(surface) => match surface.get_current_texture() {
-                Ok(output) => Some(output),
-                Err(wgpu::SurfaceError::Lost | wgpu::SurfaceError::Outdated) => {
+                wgpu::CurrentSurfaceTexture::Success(output)
+                | wgpu::CurrentSurfaceTexture::Suboptimal(output) => Some(output),
+                wgpu::CurrentSurfaceTexture::Outdated | wgpu::CurrentSurfaceTexture::Lost => {
                     surface.configure(&self.resources.device, &self.surface_config);
                     return Ok(());
                 }
-                Err(wgpu::SurfaceError::Timeout) => return Ok(()),
-                Err(error) => return Err(error.into()),
+                wgpu::CurrentSurfaceTexture::Timeout | wgpu::CurrentSurfaceTexture::Occluded => return Ok(()),
+                wgpu::CurrentSurfaceTexture::Validation => anyhow::bail!("surface validation error"),
             },
         };
         let window_view = output.as_ref().map(|output| {
@@ -1193,6 +1194,7 @@ impl App {
                 label: Some("rfvp present pass"),
                 color_attachments: &[Some(wgpu::RenderPassColorAttachment {
                     view,
+                    depth_slice: None,
                     resolve_target: None,
                     ops: wgpu::Operations {
                         load: wgpu::LoadOp::Clear(wgpu::Color::BLACK),
@@ -1202,6 +1204,7 @@ impl App {
                 depth_stencil_attachment: None,
                 timestamp_writes: None,
                 occlusion_query_set: None,
+                multiview_mask: None,
             });
 
             // Present the virtual render target into the swapchain while preserving aspect ratio.
@@ -1355,15 +1358,14 @@ impl App {
         };
 
         let output = match hud_surface.get_current_texture() {
-            Ok(o) => o,
-            Err(wgpu::SurfaceError::Lost) | Err(wgpu::SurfaceError::Outdated) => {
+            wgpu::CurrentSurfaceTexture::Success(output)
+            | wgpu::CurrentSurfaceTexture::Suboptimal(output) => output,
+            wgpu::CurrentSurfaceTexture::Outdated | wgpu::CurrentSurfaceTexture::Lost => {
                 hud_surface.configure(&self.resources.device, hud_cfg);
                 return Ok(());
             }
-            Err(wgpu::SurfaceError::Timeout) => {
-                return Ok(());
-            }
-            Err(e) => return Err(e.into()),
+            wgpu::CurrentSurfaceTexture::Timeout | wgpu::CurrentSurfaceTexture::Occluded => return Ok(()),
+            wgpu::CurrentSurfaceTexture::Validation => anyhow::bail!("surface validation error"),
         };
 
         let view = output
@@ -1383,6 +1385,7 @@ impl App {
                 label: Some("hud clear"),
                 color_attachments: &[Some(wgpu::RenderPassColorAttachment {
                     view: &view,
+                    depth_slice: None,
                     resolve_target: None,
                     ops: wgpu::Operations {
                         load: wgpu::LoadOp::Clear(wgpu::Color::BLACK),
@@ -1392,6 +1395,7 @@ impl App {
                 depth_stencil_attachment: None,
                 timestamp_writes: None,
                 occlusion_query_set: None,
+                multiview_mask: None,
             });
         }
 
