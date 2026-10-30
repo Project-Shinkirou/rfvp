@@ -193,7 +193,8 @@ impl DebugHud {
             }
         }
 
-        let full_output = self.egui_ctx.run_ui(raw_input, |ui| self.build_ui(ui, snap));
+        let egui_ctx = self.egui_ctx.clone();
+        let full_output = egui_ctx.run_ui(raw_input, |ui| self.build_ui(ui, snap));
         self.textures_delta = full_output.textures_delta;
         self.paint_jobs = self
             .egui_ctx
@@ -234,7 +235,7 @@ impl DebugHud {
                 multiview_mask: None,
             });
             self.renderer
-                .render(&mut rpass, &self.paint_jobs, &self.screen_desc);
+                .render(&mut rpass.forget_lifetime(), &self.paint_jobs, &self.screen_desc);
         }
 
         for id in &self.textures_delta.free {
