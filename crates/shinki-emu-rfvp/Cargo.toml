@@ -15,8 +15,15 @@ doctest = false
 default = []
 dynamic-plugin-export = ["shinki-emu-abi/diagnostic-bridge"]
 
-[dependencies]
+[target.'cfg(not(target_env = "ohos"))'.dependencies]
 rfvp = { path = "../rfvp", default-features = false, features = ["embedded", "runtime-core-deps", "gpu-render", "audio", "mp4", "native-video", "random", "uuid-support", "image-formats", "bevy-utils", "fontdue-compat", "cursor-ani", "zlib-flate2", "logging"] }
+shinki-emu-abi = { git = "https://github.com/Project-Shinkirou/ShinkiEMU", rev = "9cd899babbb54cbc84c3e9fbddfe192c2f9200c8" }
+anyhow = "1"
+parking_lot = "0.12"
+winit = "0.30.5"
+
+[target.'cfg(target_env = "ohos")'.dependencies]
+rfvp = { path = "../rfvp", default-features = false, features = ["embedded", "runtime-core-deps", "gpu-render", "audio", "native-video", "random", "uuid-support", "image-formats", "bevy-utils", "fontdue-compat", "cursor-ani", "zlib-flate2", "logging"] }
 shinki-emu-abi = { git = "https://github.com/Project-Shinkirou/ShinkiEMU", rev = "9cd899babbb54cbc84c3e9fbddfe192c2f9200c8" }
 anyhow = "1"
 parking_lot = "0.12"
