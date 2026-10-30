@@ -117,19 +117,18 @@ async fn run(rx: Receiver<MpegRgbaFrame>) {
             power_preference: wgpu::PowerPreference::HighPerformance,
             compatible_surface: Some(&surface),
             force_fallback_adapter: false,
+            ..Default::default()
         })
         .await
         .unwrap();
 
     let (device, queue) = adapter
-        .request_device(
-            &wgpu::DeviceDescriptor {
-                label: None,
-                required_features: wgpu::Features::empty(),
-                required_limits: wgpu::Limits::downlevel_webgl2_defaults(),
-            },
-            None,
-        )
+        .request_device(&wgpu::DeviceDescriptor {
+            label: None,
+            required_features: wgpu::Features::empty(),
+            required_limits: wgpu::Limits::downlevel_webgl2_defaults(),
+            ..Default::default()
+        })
         .await
         .unwrap();
 
@@ -146,6 +145,7 @@ async fn run(rx: Receiver<MpegRgbaFrame>) {
         alpha_mode: caps.alpha_modes[0],
         view_formats: vec![],
         desired_maximum_frame_latency: 2,
+        color_space: wgpu::SurfaceColorSpace::Srgb,
     };
     surface.configure(&device, &config);
 
@@ -218,8 +218,8 @@ async fn run(rx: Receiver<MpegRgbaFrame>) {
 
     let pipeline_layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
         label: Some("pl"),
-        bind_group_layouts: &[&bind_group_layout],
-        push_constant_ranges: &[],
+        bind_group_layouts: &[Some(&bind_group_layout)],
+        immediate_size: 0,
     });
 
     let render_pipeline = device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
@@ -227,22 +227,25 @@ async fn run(rx: Receiver<MpegRgbaFrame>) {
         layout: Some(&pipeline_layout),
         vertex: wgpu::VertexState {
             module: &shader,
-            entry_point: "vs_main",
+            entry_point: Some("vs_main"),
             buffers: &[],
+            compilation_options: Default::default(),
         },
         fragment: Some(wgpu::FragmentState {
             module: &shader,
-            entry_point: "fs_main",
+            entry_point: Some("fs_main"),
             targets: &[Some(wgpu::ColorTargetState {
                 format: config.format,
                 blend: Some(wgpu::BlendState::REPLACE),
                 write_mask: wgpu::ColorWrites::ALL,
             })],
+            compilation_options: Default::default(),
         }),
         primitive: wgpu::PrimitiveState::default(),
         depth_stencil: None,
         multisample: wgpu::MultisampleState::default(),
-        multiview: None,
+        multiview_mask: None,
+        cache: None,
     });
 
     let mut pending: VecDeque<MpegRgbaFrame> = VecDeque::new();
@@ -344,8 +347,9 @@ async fn run(rx: Receiver<MpegRgbaFrame>) {
 
                     // Render.
                     let frame = match surface.get_current_texture() {
-                        Ok(frame) => frame,
-                        Err(_) => {
+                        wgpu::CurrentSurfaceTexture::Success(frame)
+                        | wgpu::CurrentSurfaceTexture::Suboptimal(frame) => frame,
+                        _ => {
                             surface.configure(&device, &config);
                             return;
                         }
@@ -358,12 +362,14 @@ async fn run(rx: Receiver<MpegRgbaFrame>) {
                             label: None,
                             color_attachments: &[Some(wgpu::RenderPassColorAttachment {
                                 view: &view,
+                                depth_slice: None,
                                 resolve_target: None,
                                 ops: wgpu::Operations { load: wgpu::LoadOp::Clear(wgpu::Color::BLACK), store: wgpu::StoreOp::Store },
                             })],
                             depth_stencil_attachment: None,
                             timestamp_writes: None,
                             occlusion_query_set: None,
+                            multiview_mask: None,
                         });
                         rpass.set_pipeline(&render_pipeline);
                         rpass.set_bind_group(0, &bind_group, &[]);
@@ -371,7 +377,7 @@ async fn run(rx: Receiver<MpegRgbaFrame>) {
                     }
 
                     queue.submit(Some(encoder.finish()));
-                    frame.present();
+                    queue.present(frame);
                     }
                     _ => {}
                 },

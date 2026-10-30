@@ -162,7 +162,7 @@ impl GpuTexture {
             address_mode_w: wgpu::AddressMode::ClampToEdge,
             mag_filter: sampler_filter,
             min_filter: sampler_filter,
-            mipmap_filter: wgpu::FilterMode::Nearest,
+            mipmap_filter: wgpu::MipmapFilterMode::Nearest,
             ..Default::default()
         });
 

@@ -41,11 +41,8 @@ impl SpritePipeline {
 
         let pipeline_layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
             label: Some("rfvp_render.sprite_pipeline_layout"),
-            bind_group_layouts: &[&layouts.texture],
-            push_constant_ranges: &[wgpu::PushConstantRange {
-                stages: wgpu::ShaderStages::VERTEX,
-                range: 0..64,
-            }],
+            bind_group_layouts: &[Some(&layouts.texture)],
+            immediate_size: 64,
         });
 
         let vertex_layout = wgpu::VertexBufferLayout {
@@ -76,17 +73,19 @@ impl SpritePipeline {
                 layout: Some(&pipeline_layout),
                 vertex: wgpu::VertexState {
                     module: &shader,
-                    entry_point: "vs_main",
-                    buffers: &[vertex_layout.clone()],
+                    entry_point: Some("vs_main"),
+                    buffers: &[Some(vertex_layout.clone())],
+                    compilation_options: Default::default(),
                 },
                 fragment: Some(wgpu::FragmentState {
                     module: &shader,
-                    entry_point: "fs_main",
+                    entry_point: Some("fs_main"),
                     targets: &[Some(wgpu::ColorTargetState {
                         format: target_format,
                         blend: Some(blend),
                         write_mask: wgpu::ColorWrites::ALL,
                     })],
+                    compilation_options: Default::default(),
                 }),
                 primitive: wgpu::PrimitiveState {
                     topology: wgpu::PrimitiveTopology::TriangleList,
@@ -99,7 +98,8 @@ impl SpritePipeline {
                 },
                 depth_stencil: None,
                 multisample: wgpu::MultisampleState::default(),
-                multiview: None,
+                multiview_mask: None,
+                cache: None,
             })
         };
         let pipeline = make_pipeline(wgpu::BlendState::ALPHA_BLENDING);
@@ -137,7 +137,7 @@ impl SpritePipeline {
         });
         pass.set_bind_group(0, tex.raw(), &[]);
         let m = transform.to_cols_array();
-        pass.set_push_constants(wgpu::ShaderStages::VERTEX, 0, bytemuck::bytes_of(&m));
+        pass.set_immediates(0, bytemuck::bytes_of(&m));
 
         match src {
             VertexSource::VertexBuffer {

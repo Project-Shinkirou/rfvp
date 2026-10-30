@@ -83,7 +83,13 @@ impl RenderTargetReadback {
         let dst_bpr = self.bytes_per_row as usize;
         let src_bpr = self.padded_bytes_per_row as usize;
         let slice = self.buffer.slice(..);
-        let mapped = slice.get_mapped_range();
+        let mapped = match slice.get_mapped_range() {
+            Ok(mapped) => mapped,
+            Err(_) => {
+                self.cancel_mapping();
+                return Err("RFVP_GPU_READBACK_FAILED");
+            }
+        };
         out.clear();
         out.reserve(height * dst_bpr);
         for y in 0..height {
@@ -152,7 +158,7 @@ impl RenderTarget {
             address_mode_w: wgpu::AddressMode::ClampToEdge,
             mag_filter: wgpu::FilterMode::Nearest,
             min_filter: wgpu::FilterMode::Nearest,
-            mipmap_filter: wgpu::FilterMode::Nearest,
+            mipmap_filter: wgpu::MipmapFilterMode::Nearest,
             ..Default::default()
         });
 
@@ -300,6 +306,7 @@ impl RenderTarget {
             label,
             color_attachments: &[Some(wgpu::RenderPassColorAttachment {
                 view: &self.view,
+                depth_slice: None,
                 resolve_target: None,
                 ops: wgpu::Operations {
                     load: wgpu::LoadOp::Clear(wgpu::Color::BLACK),
@@ -309,6 +316,7 @@ impl RenderTarget {
             depth_stencil_attachment: None,
             timestamp_writes: None,
             occlusion_query_set: None,
+            multiview_mask: None,
         })
     }
 

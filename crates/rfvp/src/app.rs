@@ -2348,12 +2348,7 @@ impl AppBuilder {
         let backends = wgpu::Backends::GL;
 
         #[cfg(not(target_arch = "wasm32"))]
-        let backends = wgpu::util::backend_bits_from_env().unwrap_or(wgpu::Backends::all());
-
-        let instance = wgpu::Instance::new(wgpu::InstanceDescriptor {
-            backends,
-            ..Default::default()
-        });
+        let instance = wgpu::Instance::new(wgpu::InstanceDescriptor::new_without_display_handle_from_env());
 
         // Main surface
         let surface = {
@@ -2503,11 +2498,7 @@ impl AppBuilder {
         }
 
         let (sw, sh) = (surface_size.0.max(1), surface_size.1.max(1));
-        let backends = wgpu::util::backend_bits_from_env().unwrap_or(wgpu::Backends::all());
-        let instance = wgpu::Instance::new(wgpu::InstanceDescriptor {
-            backends,
-            ..Default::default()
-        });
+        let instance = wgpu::Instance::new(wgpu::InstanceDescriptor::new_without_display_handle_from_env());
 
         let surface = {
             let target = IosSurfaceTarget { view: ui_view };
@@ -2611,11 +2602,7 @@ impl AppBuilder {
         }
 
         let (sw, sh) = (surface_size_px.0.max(1), surface_size_px.1.max(1));
-        let backends = wgpu::util::backend_bits_from_env().unwrap_or(wgpu::Backends::all());
-        let instance = wgpu::Instance::new(wgpu::InstanceDescriptor {
-            backends,
-            ..Default::default()
-        });
+        let instance = wgpu::Instance::new(wgpu::InstanceDescriptor::new_without_display_handle_from_env());
 
         let surface = {
             let target = AndroidSurfaceTarget {

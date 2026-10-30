@@ -16,10 +16,7 @@ impl FillPipeline {
         let pipeline_layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
             label: Some("rfvp_render.fill_pipeline_layout"),
             bind_group_layouts: &[],
-            push_constant_ranges: &[wgpu::PushConstantRange {
-                stages: wgpu::ShaderStages::VERTEX | wgpu::ShaderStages::FRAGMENT,
-                range: 0..80,
-            }],
+            immediate_size: 80,
         });
 
         let vertex_layout = wgpu::VertexBufferLayout {
@@ -37,17 +34,19 @@ impl FillPipeline {
             layout: Some(&pipeline_layout),
             vertex: wgpu::VertexState {
                 module: &shader,
-                entry_point: "vs_main",
-                buffers: &[vertex_layout],
+                entry_point: Some("vs_main"),
+                buffers: &[Some(vertex_layout)],
+                compilation_options: Default::default(),
             },
             fragment: Some(wgpu::FragmentState {
                 module: &shader,
-                entry_point: "fs_main",
+                entry_point: Some("fs_main"),
                 targets: &[Some(wgpu::ColorTargetState {
                     format: target_format,
                     blend: Some(wgpu::BlendState::ALPHA_BLENDING),
                     write_mask: wgpu::ColorWrites::ALL,
                 })],
+                compilation_options: Default::default(),
             }),
             primitive: wgpu::PrimitiveState {
                 topology: wgpu::PrimitiveTopology::TriangleList,
@@ -60,7 +59,8 @@ impl FillPipeline {
             },
             depth_stencil: None,
             multisample: wgpu::MultisampleState::default(),
-            multiview: None,
+            multiview_mask: None,
+            cache: None,
         });
 
         Self { pipeline }
@@ -80,11 +80,7 @@ impl FillPipeline {
         pc[0..64].copy_from_slice(bytemuck::bytes_of(&m));
         let c = color.to_array();
         pc[64..80].copy_from_slice(bytemuck::bytes_of(&c));
-        pass.set_push_constants(
-            wgpu::ShaderStages::VERTEX | wgpu::ShaderStages::FRAGMENT,
-            0,
-            &pc,
-        );
+        pass.set_immediates(0, &pc);
 
         match src {
             VertexSource::VertexBuffer {

@@ -241,7 +241,7 @@ impl DebugHud {
     }
 
     fn build_ui(&mut self, snap: &HudSnapshot) {
-        egui::TopBottomPanel::top("hud_top").show(&self.egui_ctx, |ui| {
+        egui::Panel::top("hud_top").show(&self.egui_ctx, |ui| {
             ui.with_layout(Layout::left_to_right(Align::Center), |ui| {
                 ui.heading("rfvp debug");
                 ui.separator();
