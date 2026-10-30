@@ -222,14 +222,14 @@ impl GpuTexture {
             .fetch_add(bytes_per_row as u64 * src_h as u64, std::sync::atomic::Ordering::Relaxed);
 
         resources.queue.write_texture(
-            wgpu::ImageCopyTexture {
+            wgpu::TexelCopyTextureInfo {
                 texture: &self.texture,
                 mip_level: 0,
                 origin: wgpu::Origin3d::ZERO,
                 aspect: wgpu::TextureAspect::All,
             },
             &raw,
-            wgpu::ImageDataLayout {
+            wgpu::TexelCopyBufferLayout {
                 offset: 0,
                 bytes_per_row: Some(bytes_per_row),
                 rows_per_image: Some(src_h),

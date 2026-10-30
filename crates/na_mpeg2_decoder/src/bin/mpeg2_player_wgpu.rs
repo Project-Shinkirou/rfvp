@@ -334,9 +334,9 @@ async fn run(rx: Receiver<MpegRgbaFrame>) {
                             };
 
                             queue.write_texture(
-                                wgpu::ImageCopyTexture { texture: &texture, mip_level: 0, origin: wgpu::Origin3d::ZERO, aspect: wgpu::TextureAspect::All },
+                                wgpu::TexelCopyTextureInfo { texture: &texture, mip_level: 0, origin: wgpu::Origin3d::ZERO, aspect: wgpu::TextureAspect::All },
                                 upload_bytes,
-                                wgpu::ImageDataLayout { offset: 0, bytes_per_row: Some(upload_bpr), rows_per_image: Some(tex_h) },
+                                wgpu::TexelCopyBufferLayout { offset: 0, bytes_per_row: Some(upload_bpr), rows_per_image: Some(tex_h) },
                                 wgpu::Extent3d { width: tex_w, height: tex_h, depth_or_array_layers: 1 },
                             );
                         }

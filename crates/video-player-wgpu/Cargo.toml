@@ -11,6 +11,6 @@ pollster = "0.3"
 bytemuck = { version = "1.14", features = ["derive"] }
 
 winit = "0.29"
-wgpu = "0.19"
+wgpu = "30"
 
 video-sys = "0.1.0"

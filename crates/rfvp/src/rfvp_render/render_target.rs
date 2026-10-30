@@ -64,7 +64,7 @@ impl RenderTargetReadback {
 
     pub(crate) fn poll_rgba8_into(&mut self, device: &wgpu::Device, out: &mut Vec<u8>) -> Result<bool, &'static str> {
         let deadline = self.map_deadline.ok_or("RFVP_GPU_READBACK_NOT_PENDING")?;
-        device.poll(wgpu::Maintain::Poll);
+        device.poll(wgpu::PollType::Poll);
         match self.completion.load(Ordering::Acquire) & 3 {
             1 => {
                 if Instant::now() >= deadline {
@@ -349,15 +349,15 @@ impl RenderTarget {
         let readback = storage.as_mut().expect("readback storage initialized");
 
         encoder.copy_texture_to_buffer(
-            wgpu::ImageCopyTexture {
+            wgpu::TexelCopyTextureInfo {
                 texture: &self.texture,
                 mip_level: 0,
                 origin: wgpu::Origin3d::ZERO,
                 aspect: wgpu::TextureAspect::All,
             },
-            wgpu::ImageCopyBuffer {
+            wgpu::TexelCopyBufferInfo {
                 buffer: &readback.buffer,
-                layout: wgpu::ImageDataLayout {
+                layout: wgpu::TexelCopyBufferLayout {
                     offset: 0,
                     bytes_per_row: Some(padded_bytes_per_row),
                     rows_per_image: Some(height),
