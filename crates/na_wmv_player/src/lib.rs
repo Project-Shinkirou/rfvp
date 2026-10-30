@@ -1,4 +1,9 @@
 //! Native ASF/WMV container parsing and WMV/VC-1 decoding library.
+
+//! Build the decoder library with `cargo build -p wmv-decoder`.
+//! Standalone users needing the exported `wmv2_decoder_*` C functions must opt
+//! in with `cargo build -p wmv-decoder --features c-abi`; the C ABI is disabled
+//! by default.
 //!
 
 pub mod asf;

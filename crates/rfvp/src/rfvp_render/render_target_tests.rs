@@ -1,4 +1,5 @@
 use super::*;
+use wgpu::util::DeviceExt;
 
 fn staging() -> (wgpu::Device, wgpu::Queue, RenderTargetReadback) {
     let instance = wgpu::Instance::default();
@@ -14,7 +15,7 @@ fn staging() -> (wgpu::Device, wgpu::Queue, RenderTargetReadback) {
             | wgpu::DeviceType::VirtualGpu
     ));
     let (device, queue) =
-        pollster::block_on(adapter.request_device(&wgpu::DeviceDescriptor::default(), None))
+        pollster::block_on(adapter.request_device(&wgpu::DeviceDescriptor::default()))
             .unwrap();
     let buffer = device.create_buffer(&wgpu::BufferDescriptor {
         label: Some("read-into fault regression"),
@@ -33,6 +34,78 @@ fn staging() -> (wgpu::Device, wgpu::Queue, RenderTargetReadback) {
         map_deadline: None,
     };
     (device, queue, readback)
+}
+#[cfg(all(not(feature = "no_std"), feature = "gpu-render"))]
+#[test]
+#[ignore = "requires a hardware GPU"]
+fn render_target_pipeline_shaders_validate_and_read_back() {
+    let instance = wgpu::Instance::default();
+    let adapter = pollster::block_on(instance.request_adapter(&wgpu::RequestAdapterOptions {
+        force_fallback_adapter: false,
+        ..Default::default()
+    }))
+    .expect("hardware adapter");
+    assert!(matches!(
+        adapter.get_info().device_type,
+        wgpu::DeviceType::DiscreteGpu
+            | wgpu::DeviceType::IntegratedGpu
+            | wgpu::DeviceType::VirtualGpu
+    ));
+    let mut limits = wgpu::Limits::downlevel_webgl2_defaults().using_resolution(adapter.limits());
+    limits.max_immediate_size = 80;
+    let (device, queue) = pollster::block_on(adapter.request_device(&wgpu::DeviceDescriptor {
+        label: Some("RFVP shader validation test"),
+        required_features: wgpu::Features::IMMEDIATES,
+        required_limits: limits,
+        ..Default::default()
+    }))
+    .unwrap();
+    let bind_group_layouts = crate::rfvp_render::BindGroupLayouts::new(&device);
+    let queue = Arc::new(queue);
+    let pipelines = crate::rfvp_render::Pipelines::new(&device, &queue, &bind_group_layouts, RenderTarget::FORMAT);
+    let resources = GpuCommonResources {
+        device,
+        queue,
+        render_buffer_size: std::sync::RwLock::new((8, 8)),
+        bind_group_layouts,
+        pipelines,
+    };
+    let target = RenderTarget::new(&resources, (8, 8), (8, 8), Some("shader validation"));
+    let vertices = [
+        crate::rfvp_render::PosVertex { position: glam::Vec3::new(-1.0, -1.0, 0.0) },
+        crate::rfvp_render::PosVertex { position: glam::Vec3::new(3.0, -1.0, 0.0) },
+        crate::rfvp_render::PosVertex { position: glam::Vec3::new(-1.0, 3.0, 0.0) },
+    ];
+    let vertex_buffer = resources.device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+        label: Some("shader validation vertices"),
+        contents: bytemuck::cast_slice(&vertices),
+        usage: wgpu::BufferUsages::VERTEX,
+    });
+    let mut encoder = resources.device.create_command_encoder(&wgpu::CommandEncoderDescriptor {
+        label: Some("shader validation readback"),
+    });
+    let mut readback = None;
+    {
+        let mut pass = target.begin_srgb_render_pass(&mut encoder, Some("shader validation render"));
+        resources.pipelines.fill.draw(
+            &mut pass,
+            VertexSource::VertexBuffer {
+                vertex_buffer: &vertex_buffer,
+                vertices: 0..3,
+                instances: 0..1,
+            },
+            glam::Mat4::IDENTITY,
+            glam::Vec4::ONE,
+        );
+    }
+    target.encode_readback_rgba8(&resources.device, &mut encoder, &mut readback);
+    resources.queue.submit([encoder.finish()]);
+    let readback = readback.as_mut().unwrap();
+    readback.begin_mapping().unwrap();
+    let mut pixels = Vec::new();
+    complete(readback, &resources.device, &mut pixels);
+    assert_eq!(pixels.len(), 8 * 8 * 4);
+    assert!(pixels.chunks_exact(4).all(|pixel| pixel == [255, 255, 255, 255]));
 }
 
 fn write(queue: &wgpu::Queue, readback: &RenderTargetReadback, seed: u8) -> Vec<u8> {

@@ -205,23 +205,25 @@ impl Drop for EmbeddedApp {
 impl AppBuilder {
     fn build_embedded(mut self, raster: (u32, u32), cancellation: Arc<AtomicBool>) -> Result<Box<App>> {
         anyhow::ensure!(!cancellation.load(std::sync::atomic::Ordering::Acquire), "RFVP_SESSION_CANCELLED");
-        let instance = wgpu::Instance::new(wgpu::InstanceDescriptor::default());
+        let instance = wgpu::Instance::new(wgpu::InstanceDescriptor::new_without_display_handle());
         let adapter = futures::executor::block_on(instance.request_adapter(&wgpu::RequestAdapterOptions {
             power_preference: wgpu::PowerPreference::HighPerformance,
             compatible_surface: None,
             force_fallback_adapter: false,
+            ..Default::default()
         })).context("RFVP_GPU_ADAPTER_UNAVAILABLE")?;
         let adapter_info = adapter.get_info();
         anyhow::ensure!(adapter_info.device_type != wgpu::DeviceType::Cpu, "RFVP_HARDWARE_GPU_REQUIRED");
         log::info!(target: "rfvp::embedded", "Native GPU {:?}; logical {:?}; raster {:?}", adapter_info, self.size, raster);
         let mut limits = wgpu::Limits::downlevel_webgl2_defaults().using_resolution(adapter.limits());
-        limits.max_push_constant_size = 80;
+        limits.max_immediate_size = 80;
         anyhow::ensure!(raster.0 <= limits.max_texture_dimension_2d && raster.1 <= limits.max_texture_dimension_2d,
             "RFVP_RENDER_SIZE_EXCEEDS_DEVICE");
         let (device, queue) = futures::executor::block_on(adapter.request_device(&wgpu::DeviceDescriptor {
-            label: Some("rfvp embedded native device"), required_features: wgpu::Features::PUSH_CONSTANTS,
+            label: Some("rfvp embedded native device"), required_features: wgpu::Features::IMMEDIATES,
             required_limits: limits,
-        }, None))?;
+            ..Default::default()
+        }))?;
         anyhow::ensure!(!cancellation.load(std::sync::atomic::Ordering::Acquire), "RFVP_SESSION_CANCELLED");
         let queue = Arc::new(queue);
         let bind_group_layouts = BindGroupLayouts::new(&device);
@@ -234,6 +236,7 @@ impl AppBuilder {
             usage: wgpu::TextureUsages::RENDER_ATTACHMENT, format: RenderTarget::FORMAT,
             width: raster.0, height: raster.1, present_mode: wgpu::PresentMode::Fifo,
             alpha_mode: wgpu::CompositeAlphaMode::Opaque, view_formats: vec![], desired_maximum_frame_latency: 1,
+            color_space: wgpu::SurfaceColorSpace::Srgb,
         };
         GLOBAL.lock().map_err(|_| anyhow::anyhow!("RFVP_GLOBAL_STATE_POISONED"))?
             .init_with(self.parser.get_non_volatile_global_count(), self.parser.get_volatile_global_count());

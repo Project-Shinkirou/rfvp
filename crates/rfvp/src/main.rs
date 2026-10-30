@@ -47,8 +47,6 @@ mod utils;
 mod vm_runner;
 #[cfg(all(not(feature = "no_std"), feature = "gpu-render"))]
 mod vm_worker;
-#[cfg(all(not(feature = "no_std"), feature = "gpu-render"))]
-mod window;
 
 #[cfg(all(not(feature = "no_std"), feature = "gpu-render"))]
 pub(crate) mod platform_random;

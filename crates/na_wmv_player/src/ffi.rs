@@ -1,6 +1,6 @@
 //! Minimal C ABI for WMV2 decoding.
 //!
-//! This module is behind the `ffi` feature.
+//! This module is behind the `c-abi` feature.
 //! It decodes one assembled WMV2 frame payload at a time and exposes the internal
 //! YUV420p planes.
 

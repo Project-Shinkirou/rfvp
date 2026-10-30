@@ -11,7 +11,7 @@ struct VsOut {
   @builtin(position) pos: vec4<f32>,
 };
 
-var<push_constant> pc: Pc;
+var<immediate> pc: Pc;
 
 @vertex
 fn vs_main(v: VsIn) -> VsOut {

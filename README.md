@@ -90,6 +90,21 @@ ASS font selection comes only from each track's explicit `fonts` list.
 * Windows EXE: [setsumei/HOW-TO-BUILD.windows-msvc.md](setsumei/HOW-TO-BUILD.windows-msvc.md)
 * Linux ELF: [setsumei/HOW-TO-BUILD.host.md](setsumei/HOW-TO-BUILD.host.md)
 
+The GPU renderer uses wgpu 30 and egui 0.36. Native devices must support
+`IMMEDIATES` with at least 80 bytes; WebAssembly pipelines use uniform buffers.
+Embedded builds with subtitles require libass 0.17.5 through
+`ROUKAKU_SUBTITLE_VCPKG_ROOT` (see the adapter's build notes).
+
+The Rust WMV decoder does not export its C API by default. Standalone C consumers
+build it with `cargo build --locked -p wmv-decoder --features c-abi`.
+RFVP and ShinkiEMU use its Rust API and leave `c-abi` disabled.
+
+Validate the GPU shader pipelines and pixel readback on a hardware GPU with:
+
+```sh
+cargo test --locked -p rfvp --lib --no-default-features --features gpu-render render_target_pipeline_shaders_validate_and_read_back -- --ignored
+```
+
 ### Beyond Reimplementation
 * Since we have both decompiler and compiler, we can also write an application based on the engine, such as a simple Windows-95-style painter.
 ![win95-painter](./images/win95-painter.png)

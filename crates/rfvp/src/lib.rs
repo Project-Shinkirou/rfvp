@@ -1119,8 +1119,6 @@ pub mod utils;
 pub mod vm_runner;
 #[cfg(not(feature = "no_std"))]
 pub mod vm_worker;
-#[cfg(not(feature = "no_std"))]
-pub mod window;
 
 #[cfg(all(not(feature = "no_std"), target_arch = "wasm32", feature = "mp4"))]
 compile_error!("rfvp wasm build must use --no-default-features --features wasm");

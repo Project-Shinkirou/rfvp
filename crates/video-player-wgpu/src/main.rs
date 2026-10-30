@@ -388,10 +388,16 @@ impl State {
     }
 
     fn render(&mut self) -> Result<()> {
-        let output = self
-            .surface
-            .get_current_texture()
-            .context("get_current_texture")?;
+        let output = match self.surface.get_current_texture() {
+            wgpu::CurrentSurfaceTexture::Success(texture)
+            | wgpu::CurrentSurfaceTexture::Suboptimal(texture) => texture,
+            wgpu::CurrentSurfaceTexture::Timeout | wgpu::CurrentSurfaceTexture::Occluded => return Ok(()),
+            wgpu::CurrentSurfaceTexture::Outdated | wgpu::CurrentSurfaceTexture::Lost => {
+                self.surface.configure(&self.device, &self.config);
+                return Ok(());
+            }
+            wgpu::CurrentSurfaceTexture::Validation => anyhow::bail!("surface texture validation failed"),
+        };
         let view = output
             .texture
             .create_view(&wgpu::TextureViewDescriptor::default());

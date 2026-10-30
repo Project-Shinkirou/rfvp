@@ -88,8 +88,8 @@ impl SpritePipeline {
 
         let pipeline_layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
             label: Some("rfvp_render.sprite_pipeline_layout.wasm"),
-            bind_group_layouts: &[&layouts.texture, &pc_bind_group_layout],
-            push_constant_ranges: &[],
+            bind_group_layouts: &[Some(&layouts.texture), Some(&pc_bind_group_layout)],
+            immediate_size: 0,
         });
 
         let vertex_layout = wgpu::VertexBufferLayout {
@@ -120,17 +120,19 @@ impl SpritePipeline {
                 layout: Some(&pipeline_layout),
                 vertex: wgpu::VertexState {
                     module: &shader,
-                    entry_point: "vs_main",
-                    buffers: &[vertex_layout.clone()],
+                    entry_point: Some("vs_main"),
+                    buffers: &[Some(vertex_layout.clone())],
+                    compilation_options: Default::default(),
                 },
                 fragment: Some(wgpu::FragmentState {
                     module: &shader,
-                    entry_point: "fs_main",
+                    entry_point: Some("fs_main"),
                     targets: &[Some(wgpu::ColorTargetState {
                         format: target_format,
                         blend: Some(blend),
                         write_mask: wgpu::ColorWrites::ALL,
                     })],
+                    compilation_options: Default::default(),
                 }),
                 primitive: wgpu::PrimitiveState {
                     topology: wgpu::PrimitiveTopology::TriangleList,
@@ -143,7 +145,8 @@ impl SpritePipeline {
                 },
                 depth_stencil: None,
                 multisample: wgpu::MultisampleState::default(),
-                multiview: None,
+                multiview_mask: None,
+                cache: None,
             })
         };
         let pipeline = make_pipeline(wgpu::BlendState::ALPHA_BLENDING);
