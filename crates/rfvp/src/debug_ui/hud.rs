@@ -63,7 +63,7 @@ impl DebugHud {
         ring: Arc<LogRing>,
     ) -> Self {
         let egui_ctx = egui::Context::default();
-        let renderer = egui_wgpu::Renderer::new(device, surface_format, None, 1);
+        let renderer = egui_wgpu::Renderer::new(device, surface_format, egui_wgpu::RendererOptions::default());
 
         Self {
             ring,
@@ -183,19 +183,17 @@ impl DebugHud {
                     modifiers: egui::Modifiers::default(),
                 });
                 if inp.scroll_delta_y.abs() > 0.0 {
-                    raw_input.events.push(egui::Event::Scroll(egui::Vec2::new(
-                        0.0,
-                        inp.scroll_delta_y,
-                    )));
+                    raw_input.events.push(egui::Event::MouseWheel {
+                        unit: egui::MouseWheelUnit::Point,
+                        delta: egui::Vec2::new(0.0, inp.scroll_delta_y),
+                        phase: egui::TouchPhase::Move,
+                        modifiers: egui::Modifiers::default(),
+                    });
                 }
             }
         }
 
-        self.egui_ctx.begin_frame(raw_input);
-
-        self.build_ui(snap);
-
-        let full_output = self.egui_ctx.end_frame();
+        let full_output = self.egui_ctx.run_ui(raw_input, |ui| self.build_ui(ui, snap));
         self.textures_delta = full_output.textures_delta;
         self.paint_jobs = self
             .egui_ctx
@@ -209,8 +207,10 @@ impl DebugHud {
         encoder: &mut wgpu::CommandEncoder,
         view: &wgpu::TextureView,
     ) {
-        for (id, delta) in &self.textures_delta.set {
-            self.renderer.update_texture(device, queue, *id, delta);
+        for (id, deltas) in &self.textures_delta.set {
+            for delta in deltas {
+                self.renderer.update_texture(device, queue, *id, delta);
+            }
         }
 
         self.renderer
@@ -221,6 +221,7 @@ impl DebugHud {
                 label: Some("debug_hud"),
                 color_attachments: &[Some(wgpu::RenderPassColorAttachment {
                     view,
+                    depth_slice: None,
                     resolve_target: None,
                     ops: wgpu::Operations {
                         load: wgpu::LoadOp::Load,
@@ -230,6 +231,7 @@ impl DebugHud {
                 depth_stencil_attachment: None,
                 occlusion_query_set: None,
                 timestamp_writes: None,
+                multiview_mask: None,
             });
             self.renderer
                 .render(&mut rpass, &self.paint_jobs, &self.screen_desc);
@@ -240,8 +242,8 @@ impl DebugHud {
         }
     }
 
-    fn build_ui(&mut self, snap: &HudSnapshot) {
-        egui::Panel::top("hud_top").show(&self.egui_ctx, |ui| {
+    fn build_ui(&mut self, ui: &mut egui::Ui, snap: &HudSnapshot) {
+        egui::Panel::top("hud_top").show(ui, |ui| {
             ui.with_layout(Layout::left_to_right(Align::Center), |ui| {
                 ui.heading("rfvp debug");
                 ui.separator();
@@ -268,7 +270,7 @@ impl DebugHud {
             });
         });
 
-        egui::CentralPanel::default().show(&self.egui_ctx, |ui| {
+        egui::CentralPanel::default().show(ui, |ui| {
             if !snap.prim_tiles.is_empty() {
                 ui.group(|ui| {
                     ui.label(format!("Prim Tiles (candidates): {}", snap.prim_tiles.len()));

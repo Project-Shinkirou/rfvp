@@ -406,7 +406,7 @@ impl Resources {
 
     pub fn set_video(&mut self, ctx: &Context, index: u32, mut src: Box<dyn VideoSource>) {
         let [w, h] = src.size();
-        let blank = ColorImage::new([w as usize, h as usize], Color32::TRANSPARENT);
+        let blank = ColorImage::new([w as usize, h as usize], vec![Color32::TRANSPARENT; w as usize * h as usize]);
         let handle = ctx.load_texture(format!("vid_{index}"), blank, TextureOptions::LINEAR);
         self.videos.insert(index, (src, handle));
     }
@@ -417,11 +417,12 @@ impl Resources {
             if let Some(frame) = src.update(dt) {
                 let color_image = ept::image::ColorImage {
                     size: [frame.width, frame.height],
+                    source_size: egui::Vec2::new(frame.width as f32, frame.height as f32),
                     pixels: frame
                         .rgba
                         .chunks_exact(4)
                         .map(|abgr| {
-                            // Our frame is RGBA; egui expects sRGBA in Color32 ordering
+                            // Our frame is RGBA; egui expects sRGBA in Color32 ordering.
                             Color32::from_rgba_unmultiplied(abgr[0], abgr[1], abgr[2], abgr[3])
                         })
                         .collect::<Vec<Color32>>(),

@@ -1326,7 +1326,7 @@ impl App {
         }
 
         if let Some(output) = output {
-            output.present();
+            self.resources.queue.present(output);
         }
 
         Ok(())
@@ -1571,7 +1571,7 @@ impl App {
 
         self.resources.queue.submit(Some(encoder.finish()));
 
-        output.present();
+        self.resources.queue.present(output);
 
         Ok(())
     }
@@ -2371,30 +2371,16 @@ impl AppBuilder {
             .unwrap();
 
         let (device, queue) = adapter
-            .request_device(
-                &wgpu::DeviceDescriptor {
-                    label: None,
-                    #[cfg(not(target_arch = "wasm32"))]
-                    required_features: wgpu::Features::PUSH_CONSTANTS,
-                    #[cfg(target_arch = "wasm32")]
-                    required_features: wgpu::Features::empty(),
-                    #[cfg(not(target_arch = "wasm32"))]
-                    required_limits: {
-                        let mut limits = wgpu::Limits::downlevel_webgl2_defaults()
-                            .using_resolution(adapter.limits());
-
-                        // The renderer uses <= 80 bytes of push constants today.
-                        // Requesting 256 will fail on some Android/Vulkan drivers (including some emulators).
-                        limits.max_push_constant_size = 80;
-
-                        limits
-                    },
-
-                    #[cfg(target_arch = "wasm32")]
-                    required_limits: adapter.limits(),
+            .request_device(&wgpu::DeviceDescriptor {
+                label: None,
+                required_features: wgpu::Features::IMMEDIATES,
+                required_limits: {
+                    let mut limits = adapter.limits();
+                    limits.max_immediate_size = 80;
+                    limits
                 },
-                None,
-            )
+                ..Default::default()
+            })
             .await
             .expect("Failed to create device");
 
@@ -2409,9 +2395,8 @@ impl AppBuilder {
             present_mode: wgpu::PresentMode::Fifo,
             alpha_mode: swapchain_capabilities.alpha_modes[0],
             view_formats: vec![],
-            // One frame in flight: the layer keeps two drawables, not three (each 4K on a Retina
-            // screen, about 30 MiB); a visual novel loses nothing.
             desired_maximum_frame_latency: 1,
+            color_space: wgpu::SurfaceColorSpace::Auto,
         };
 
         surface.configure(&device, &config);
@@ -2434,6 +2419,7 @@ impl AppBuilder {
                 alpha_mode: hs_caps.alpha_modes[0],
                 view_formats: vec![],
                 desired_maximum_frame_latency: 2,
+                color_space: wgpu::SurfaceColorSpace::Auto,
             };
             hs.configure(&device, &hud_cfg);
             Some((hs, hud_cfg))
@@ -2515,20 +2501,16 @@ impl AppBuilder {
             .unwrap();
 
         let (device, queue) = adapter
-            .request_device(
-                &wgpu::DeviceDescriptor {
-                    label: None,
-                    required_features: wgpu::Features::PUSH_CONSTANTS,
-                    required_limits: wgpu::Limits {
-                        max_push_constant_size: 80,
-                        // The renderer uses <= 80 bytes of push constants today.
-                        // Requesting 256 will fail on some Android/Vulkan drivers (including some emulators).
-                        ..wgpu::Limits::downlevel_webgl2_defaults()
-                            .using_resolution(adapter.limits())
-                    },
+            .request_device(&wgpu::DeviceDescriptor {
+                label: None,
+                required_features: wgpu::Features::IMMEDIATES,
+                required_limits: {
+                    let mut limits = wgpu::Limits::downlevel_webgl2_defaults().using_resolution(adapter.limits());
+                    limits.max_immediate_size = 80;
+                    limits
                 },
-                None,
-            )
+                ..Default::default()
+            })
             .await
             .expect("Failed to create device");
 
@@ -2544,6 +2526,7 @@ impl AppBuilder {
             alpha_mode: swapchain_capabilities.alpha_modes[0],
             view_formats: vec![],
             desired_maximum_frame_latency: 2,
+            color_space: wgpu::SurfaceColorSpace::Auto,
         };
         surface.configure(&device, &config);
 
@@ -2621,20 +2604,16 @@ impl AppBuilder {
             .unwrap();
 
         let (device, queue) = adapter
-            .request_device(
-                &wgpu::DeviceDescriptor {
-                    label: None,
-                    required_features: wgpu::Features::PUSH_CONSTANTS,
-                    required_limits: wgpu::Limits {
-                        max_push_constant_size: 80,
-                        // The renderer uses <= 80 bytes of push constants today.
-                        // Requesting 256 will fail on some Android/Vulkan drivers (including some emulators).
-                        ..wgpu::Limits::downlevel_webgl2_defaults()
-                            .using_resolution(adapter.limits())
-                    },
+            .request_device(&wgpu::DeviceDescriptor {
+                label: None,
+                required_features: wgpu::Features::IMMEDIATES,
+                required_limits: {
+                    let mut limits = wgpu::Limits::downlevel_webgl2_defaults().using_resolution(adapter.limits());
+                    limits.max_immediate_size = 80;
+                    limits
                 },
-                None,
-            )
+                ..Default::default()
+            })
             .await
             .expect("Failed to create device");
 
@@ -2650,6 +2629,7 @@ impl AppBuilder {
             alpha_mode: swapchain_capabilities.alpha_modes[0],
             view_formats: vec![],
             desired_maximum_frame_latency: 2,
+            color_space: wgpu::SurfaceColorSpace::Auto,
         };
         surface.configure(&device, &config);
 
