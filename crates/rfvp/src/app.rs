@@ -2349,7 +2349,10 @@ impl AppBuilder {
     ) {
         let size = window.inner_size();
         #[cfg(target_arch = "wasm32")]
-        let backends = wgpu::Backends::GL;
+        let instance = wgpu::Instance::new(wgpu::InstanceDescriptor {
+            backends: wgpu::Backends::GL,
+            ..wgpu::InstanceDescriptor::new_without_display_handle()
+        });
 
         #[cfg(not(target_arch = "wasm32"))]
         let instance = wgpu::Instance::new(wgpu::InstanceDescriptor::new_without_display_handle_from_env());
@@ -2373,11 +2376,21 @@ impl AppBuilder {
         let (device, queue) = adapter
             .request_device(&wgpu::DeviceDescriptor {
                 label: None,
+                #[cfg(not(target_arch = "wasm32"))]
                 required_features: wgpu::Features::IMMEDIATES,
+                #[cfg(target_arch = "wasm32")]
+                required_features: wgpu::Features::empty(),
                 required_limits: {
-                    let mut limits = adapter.limits();
-                    limits.max_immediate_size = 80;
-                    limits
+                    #[cfg(not(target_arch = "wasm32"))]
+                    {
+                        let mut limits = adapter.limits();
+                        limits.max_immediate_size = 80;
+                        limits
+                    }
+                    #[cfg(target_arch = "wasm32")]
+                    {
+                        wgpu::Limits::downlevel_webgl2_defaults().using_resolution(adapter.limits())
+                    }
                 },
                 ..Default::default()
             })
