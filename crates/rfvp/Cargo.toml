@@ -353,6 +353,9 @@ wgpu = { version = "30", features = ["webgl"], optional = true }
 android-activity = { version = "0.6", features = ["game-activity"], optional = true }
 ndk-context = { version = "0.1.1", optional = true }
 
+[target.'cfg(target_os = "macos")'.dependencies]
+objc2-metal = { version = "0.3.2", default-features = false, features = ["MTLDevice"] }
+
 [target.'cfg(any(target_os = "windows", target_os = "linux", target_os = "macos"))'.dependencies]
 egui-wgpu = { version = "0.36", optional = true }
 

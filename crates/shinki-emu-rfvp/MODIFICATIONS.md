@@ -59,6 +59,8 @@ cargo xtask build --target x86_64-pc-windows-msvc --core rfvp --release
 
 Apple 构建继续使用 `rlib`（iOS 静态嵌入）及 `cdylib`（macOS `.dylib`）。只有 `dynamic-plugin-export` 导出未修饰的查询符号；静态嵌入直接调用 Rust 路径。字幕使用同一固定版本 libass 0.17.5 的目标专属静态 vcpkg 安装；WMV/MPEG 解码器为 Rust 原生实现，Apple 不需要 GStreamer。
 
+macOS 的可选 `RFVP_MEM_REPORT` 指标使用 wgpu 30 的 `as_hal::<Metal>()` 只读设备 guard，在 guard 存活期间通过原生 `MTLDevice::currentAllocatedSize()` 读取实际设备分配量。`objc2-metal` 仅为 macOS 显式导入已锁定的 0.3.2 协议 trait；不改变 Windows/Linux 依赖版本、原生执行、字体或脚本身份语义。
+
 运行需要兼容 C ABI v3 的 Release Manager、x64 Windows 系统组件、VC++ 运行库及可用 GPU/音频驱动。静态导入包括 `VCRUNTIME140.dll`、UCRT、`mfplat.dll`（Media Foundation）、`d3dcompiler_47.dll`，以及随核心目录分发的 `fribidi-0.dll`；原生媒体实现没有 FFmpeg DLL 依赖。Vulkan 需驱动提供 loader；帧只经 CPU lease 交付。
 
 原生保存写入游戏目录下的 `save/`。字体、媒体与字幕依赖来源见 [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)。

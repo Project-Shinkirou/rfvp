@@ -4664,6 +4664,7 @@ dependencies = [
  "mp4",
  "na_mpeg2_decoder",
  "ndk-context",
+ "objc2-metal 0.3.2",
  "parking_lot",
  "petitset",
  "pollster 0.4.0",

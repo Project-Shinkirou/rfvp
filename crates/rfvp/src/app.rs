@@ -634,13 +634,13 @@ impl App {
             }
         }
         #[cfg(target_os = "macos")]
-        let metal = unsafe {
-            self.resources.device.as_hal::<wgpu::hal::api::Metal, _, _>(|device| {
-                device.map(|d| d.raw_device().lock().current_allocated_size() >> 20)
-            })
-        }
-        .flatten()
-        .unwrap_or(0);
+        let metal = {
+            use objc2_metal::MTLDevice as _;
+            // Read the native metric while the HAL device guard remains alive.
+            unsafe { self.resources.device.as_hal::<wgpu::hal::api::Metal>() }
+                .map(|device| (device.raw_device().currentAllocatedSize() as u64) >> 20)
+                .unwrap_or(0)
+        };
         #[cfg(not(target_os = "macos"))]
         let metal = 0u64;
         eprintln!(
