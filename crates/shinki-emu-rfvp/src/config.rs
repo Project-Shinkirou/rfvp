@@ -106,7 +106,8 @@ pub const RENDER: RenderExtentSupport = RenderExtentSupport {
     flags: RENDER_PRESERVE_ASPECT,
     reserved: 0,
 };
-pub const CAPABILITIES: u64 = CAP_CPU_SURFACE | CAP_RENDER_EXTENT;
+pub const CAPABILITIES: u64 = CAP_CPU_SURFACE | CAP_RENDER_EXTENT
+    | CAP_NATIVE_SCRIPT_IDENTITY | CAP_CONFIGURED_FONT_PRIORITY;
 
 pub fn descriptor() -> Descriptor {
     Descriptor {

@@ -63,6 +63,12 @@ fail startup. Without a marker, existing game save paths are unchanged. Converte
 save/read identity: do not copy Japanese or former external-table saves into their namespace.
 Use a separate output directory; private patch fonts/resources remain local and retain their licenses.
 
+The actual loaded descriptor declares `CAP_NATIVE_SCRIPT_IDENTITY` (64) and
+`CAP_CONFIGURED_FONT_PRIORITY` (128) for these implemented guarantees. Native conversion
+profiles require both bits (`required_capabilities:192`); hosts must reject an older core
+missing either capability and request a core update. These are additive bits in the
+existing ABI-v3 descriptor, not a new C layout, hook or file-presence feature probe.
+
 Embedded builds enable the native `subtitles` feature. `subtitle_map` is an optional
 game-root-relative JSON path (4096-byte maximum):
 ```json

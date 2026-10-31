@@ -17,7 +17,7 @@ dynamic-plugin-export = ["shinki-emu-abi/diagnostic-bridge"]
 
 [dependencies]
 rfvp = { path = "../rfvp", default-features = false, features = ["embedded", "runtime-core-deps", "gpu-render", "audio", "mp4", "native-video", "random", "uuid-support", "image-formats", "bevy-utils", "fontdue-compat", "cursor-ani", "zlib-flate2", "logging"] }
-shinki-emu-abi = { git = "https://github.com/Project-Shinkirou/ShinkiEMU", rev = "9cd899babbb54cbc84c3e9fbddfe192c2f9200c8" }
+shinki-emu-abi = { git = "https://github.com/Project-Shinkirou/ShinkiEMU", rev = "67f9c7cdd7a47de1fce75763aede958678c46d98" }
 anyhow = "1"
 parking_lot = "0.12"
 winit = "0.30.5"

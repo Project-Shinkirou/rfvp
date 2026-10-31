@@ -5176,7 +5176,7 @@ dependencies = [
 [[package]]
 name = "shinki-emu-abi"
 version = "0.1.0"
-source = "git+https://github.com/Project-Shinkirou/ShinkiEMU?rev=9cd899babbb54cbc84c3e9fbddfe192c2f9200c8#9cd899babbb54cbc84c3e9fbddfe192c2f9200c8"
+source = "git+https://github.com/Project-Shinkirou/ShinkiEMU?rev=67f9c7cdd7a47de1fce75763aede958678c46d98#67f9c7cdd7a47de1fce75763aede958678c46d98"
 dependencies = [
  "tracing",
  "tracing-log",
