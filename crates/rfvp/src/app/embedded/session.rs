@@ -74,9 +74,9 @@ pub struct NativeSession {
 }
 
 impl NativeSession {
-    pub fn open(root: String, nls: Nls, render_extent: (u32, u32), translation_table: String, subtitle_map: String,
+    pub fn open(root: String, nls: Nls, render_extent: (u32, u32), font_path: String, subtitle_map: String,
         platform: Arc<dyn Platform>, initially_suspended: bool) -> Result<Self> {
-        Self::open_endpoint(move |cancellation| EmbeddedApp::open(&root, nls, render_extent, &translation_table,
+        Self::open_endpoint(move |cancellation| EmbeddedApp::open(&root, nls, render_extent, &font_path,
             &subtitle_map, cancellation), platform, initially_suspended)
     }
 

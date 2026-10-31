@@ -250,7 +250,7 @@ unsafe extern "C" fn open(
             root,
             config.nls,
             (request.render_extent.width, request.render_extent.height),
-            config.translation_table,
+            config.font_path,
             config.subtitle_map,
             platform.clone(),
             request.window.suspended != 0,

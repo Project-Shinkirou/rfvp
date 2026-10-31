@@ -25,7 +25,7 @@ App、调度、VM、资源、renderer、游戏 UI、音视频与保存继续由 
 
 窗口外部尺寸 O 不改变 L/R，也不推进 VM。渲染尺寸由 `OpenRequest.render_extent` 指定，描述符声明范围 160×90 – 8192×8192、默认 0×0 并保持宽高比：0×0 使用 1:1 缩放；否则 `scale = min(w/Lw, h/Lh)` 截断到 0.25–4，`R = round(L × scale)`，任一轴超过 8192 返回 `RFVP_RENDER_SIZE_UNSUPPORTED`，并校验设备尺寸上限；`SurfaceInfo.raster` 报告实际 R，未声明在线重配置。原 `render_scale`、`surface` 配置项已删除。输入携带当前会话/输出代次和帧像素坐标，再复用原生窗口到逻辑/UI 映射。plugin ID 为上游仓库名 `rfvp`，保留文件 stem 游戏身份和 `script_encoding=shift_jis/gbk/utf8`（选项名 Shift-JIS（日文原版）/GBK（简体中文）/UTF-8）。配置标签、分组、说明均为中文。
 
-原生 typed 配置增加默认空的 `translation_table` 与 `subtitle_map`，声明为 `CONFIG_FLAG_FILE_PATH | CONFIG_FLAG_GAME_RELATIVE`，均读取游戏根内的显式相对资源。`AFVPTR1` 翻译表按原 HCB 字符串偏移保存 UTF-8，核对最终 HCB 哈希与真实指令边界；未命中保留原编码，不改写 VM 地址或原脚本。字幕映射按 movie/BGM 资源关联 UTF-8 ASS 和显式字体，由原生媒体时钟驱动并绘入原场景目标；暂停、换曲、结束、seek/读档与输出尺寸变化沿原生命周期更新。该能力不补充游戏字体授权。
+删除外挂翻译配置和运行时 offset→UTF-8 表，`PushString` 仅按 `script_encoding` 读取真实 HCB 字面量。`font_path` 为有界游戏相对路径，复用原生强制首选 face，覆盖正文、姓名、ruby 和内置 UI；不授权分发私有字体。`subtitle_map` 保留原 movie/BGM 时钟和 ASS 样式、显式私有字体及生命周期。转换生成的固定 `shinki-native-script.json` 只含 version=1 和完整 HCB SHA256；校验实际已加载脚本后，以原生 SubdirStorage 将该转换输出的存档/既读隔离到 `.shinki/rfvp/<hash>/save`，不参与译文/地址映射。标记损坏或不匹配明确拒绝，无标记游戏保持原路径。新脚本不继承旧日文/外挂表存档和既读。
 
 原生 owner 使用独立 8 MiB 栈线程；平台线程只入队输入/控制及取得完成帧。三槽不可变 CPU 池满时跳过显示发布，VM、音频和存档继续执行。Ready/Pending/Unchanged 不以像素 hash 判断；已交付 lease 可跨关闭持有，归还只销毁纯 CPU owner。
 

@@ -16,7 +16,6 @@ pub mod global;
 pub mod inst;
 pub mod opcode;
 pub mod parser;
-pub mod translation;
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 struct SavedStackInfo {

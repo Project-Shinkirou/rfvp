@@ -79,9 +79,9 @@ static SCHEMA: Schema = Schema([
         unit: Bytes::EMPTY,
     },
     path_field(
-        b"translation_table",
-        "翻译对照表",
-        "按原脚本偏移替换对白文本的翻译表文件，路径相对游戏目录，留空则显示原文。",
+        b"font_path",
+        "游戏字体",
+        "所有游戏文字（含姓名和注音）的首选字体，路径相对游戏目录；缺字使用游戏内字体回退。",
     ),
     path_field(
         b"subtitle_map",
@@ -127,7 +127,7 @@ pub fn descriptor() -> Descriptor {
 
 pub struct EmbeddedConfig {
     pub nls: Nls,
-    pub translation_table: String,
+    pub font_path: String,
     pub subtitle_map: String,
 }
 
@@ -148,7 +148,7 @@ pub unsafe fn parse(request: &OpenRequest) -> anyhow::Result<EmbeddedConfig> {
         )
     })?;
     let mut nls = Nls::ShiftJIS;
-    let mut translation_table = String::new();
+    let mut font_path = String::new();
     let mut subtitle_map = String::new();
     for entry in values {
         match unsafe { entry.id.text(128) }
@@ -159,9 +159,9 @@ pub unsafe fn parse(request: &OpenRequest) -> anyhow::Result<EmbeddedConfig> {
                     .map_err(|_| anyhow::anyhow!("RFVP_CONFIG_ENCODING_INVALID"))?
                     .parse()?
             }
-            "translation_table" => {
-                translation_table = unsafe { entry.value.text.text(4096) }
-                    .map_err(|_| anyhow::anyhow!("RFVP_CONFIG_TRANSLATION_INVALID"))?
+            "font_path" => {
+                font_path = unsafe { entry.value.text.text(4096) }
+                    .map_err(|_| anyhow::anyhow!("RFVP_CONFIG_FONT_INVALID"))?
                     .to_owned()
             }
             "subtitle_map" => {
@@ -174,7 +174,7 @@ pub unsafe fn parse(request: &OpenRequest) -> anyhow::Result<EmbeddedConfig> {
     }
     Ok(EmbeddedConfig {
         nls,
-        translation_table,
+        font_path,
         subtitle_map,
     })
 }
@@ -184,10 +184,10 @@ mod tests {
     use super::*;
 
     #[test]
-    fn translation_table_is_optional_bounded_game_relative_file() {
+    fn font_path_is_optional_bounded_game_relative_file() {
         let path = vec![b'a'; 4096];
         let entry = ConfigEntry {
-            id: text(b"translation_table"),
+            id: text(b"font_path"),
             value: ConfigValue {
                 kind: VALUE_STRING,
                 reserved: 0,

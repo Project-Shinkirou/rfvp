@@ -51,13 +51,17 @@ If you want to run a translated game, currently we only support UTF-8 and GBK en
 * The translated game encrypts the translated assets.
 * Any other ways that the translated game differs from the original game in terms of data structure and format.
 
-The Shinki embedded configuration also accepts `translation_table`, an optional game-root-relative
-path (at most 4096 UTF-8 bytes). The engine loads the read-only `AFVPTR1\0` table once at startup,
-checks the final HCB SHA-256, and validates strictly increasing offsets against actual `PushString`
-payload boundaries. Each matched UTF-8 string retains its original HCB offset identity; unmatched
-strings keep the configured script encoding. Tables with duplicate offsets, invalid UTF-8,
-embedded NULs, truncated records, or trailing data are rejected. The table stores both the source
-and final HCB hashes; only the final hash identifies the script loaded by the engine.
+Embedded builds consume translated literals directly from HCB using `script_encoding`; no external
+translation table or runtime string replacement is supported. `font_path` selects an explicit
+game-root-relative font as primary for dialogue, names, ruby and native UI, including styles that
+request a built-in face. Missing glyphs use the ordinary native fallback chain.
+
+Converted output may contain `shinki-native-script.json` (`version:1`, `sha256`: full lowercase HCB
+SHA-256). It contains no text or PC mappings and never participates in script decoding. A matching
+marker isolates saves/read history under `.shinki/rfvp/<hash>/save`; malformed/mismatched markers
+fail startup. Without a marker, existing game save paths are unchanged. Converted scripts are a new
+save/read identity: do not copy Japanese or former external-table saves into their namespace.
+Use a separate output directory; private patch fonts/resources remain local and retain their licenses.
 
 Embedded builds enable the native `subtitles` feature. `subtitle_map` is an optional
 game-root-relative JSON path (4096-byte maximum):

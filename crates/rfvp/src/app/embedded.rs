@@ -29,28 +29,21 @@ pub fn raster_size(logical: (u32, u32), requested: (u32, u32)) -> Result<(u32, u
     Ok(raster)
 }
 
+mod native_output;
+
 impl EmbeddedApp {
-    pub fn open(game_root: &str, nls: Nls, render_extent: (u32, u32), translation_table: &str, subtitle_map: &str,
+    pub fn open(game_root: &str, nls: Nls, render_extent: (u32, u32), font_path: &str, subtitle_map: &str,
         cancellation: Arc<AtomicBool>) -> Result<Self> {
         anyhow::ensure!(!cancellation.load(std::sync::atomic::Ordering::Acquire), "RFVP_SESSION_CANCELLED");
         crate::utils::file::set_base_path(game_root);
-        let mut parser = crate::boot::load_script(nls)?;
-        if !translation_table.is_empty() {
-            let relative = std::path::Path::new(translation_table);
-            anyhow::ensure!(translation_table.len() <= 4096 && !relative.is_absolute() && !translation_table.contains([':', '\\', '\0'])
-                && relative.components().all(|part| matches!(part, std::path::Component::Normal(_))),
-                "RFVP_TRANSLATION_PATH_INVALID");
-            let root = std::fs::canonicalize(game_root)?;
-            let path = std::fs::canonicalize(root.join(relative))?;
-            anyhow::ensure!(path.starts_with(&root), "RFVP_TRANSLATION_PATH_OUTSIDE_ROOT");
-            let file = std::fs::File::open(path)?;
-            anyhow::ensure!(file.metadata()?.len() <= 64 * 1024 * 1024, "RFVP_TRANSLATION_TOO_LARGE");
-            let mut bytes = Vec::new();
-            use std::io::Read;
-            file.take(64 * 1024 * 1024 + 1).read_to_end(&mut bytes)?;
-            anyhow::ensure!(bytes.len() <= 64 * 1024 * 1024, "RFVP_TRANSLATION_TOO_LARGE");
-            parser.set_translation_table(&bytes)?;
-        }
+        let parser = crate::boot::load_script(nls)?;
+        let root = std::path::Path::new(game_root);
+        let namespace = native_output::save_namespace(root, parser.buffer.as_slice())?;
+        let font = if font_path.is_empty() { None } else {
+            let path = native_output::game_file(root, font_path)?;
+            anyhow::ensure!(path.metadata()?.len() <= 64 * 1024 * 1024, "RFVP_FONT_TOO_LARGE");
+            Some(path)
+        };
         anyhow::ensure!(!cancellation.load(std::sync::atomic::Ordering::Acquire), "RFVP_SESSION_CANCELLED");
         let title = parser.get_title();
         let logical = parser.get_screen_size();
@@ -63,7 +56,7 @@ impl EmbeddedApp {
         #[cfg(not(feature = "subtitles"))]
         anyhow::ensure!(subtitle_map.is_empty(), "RFVP_SUBTITLE_SUPPORT_NOT_COMPILED");
         // The embedding application owns logging. Do not initialize the desktop logger here.
-        let builder = AppBuilder::new_boxed(crate::boot::app_config(&title, logical))
+        let mut builder = AppBuilder::new_boxed(crate::boot::app_config(&title, logical))
             .with_scene::<AnzuScene>()
             .with_script_engine(ThreadManager::new())
             .with_window_title(&title)
@@ -71,8 +64,12 @@ impl EmbeddedApp {
             .with_parser(parser)
             .with_text_hidpi_enabled(true)
             .with_vfs(nls)?;
+        if let Some(prefix) = namespace {
+            builder.world.save_manager.set_storage(Some(Arc::new(crate::host_api::SubdirStorage::new(
+                crate::utils::file::desktop_storage(), &prefix))));
+        }
         #[allow(unused_mut)]
-        let mut app = builder.build_embedded(raster, cancellation)?;
+        let mut app = builder.build_embedded(raster, cancellation, font.as_deref())?;
         #[cfg(feature = "subtitles")]
         { app.subtitles = subtitles; }
         Ok(Self { app, readback: None, paused_at: None, closed: false })
@@ -203,7 +200,8 @@ impl Drop for EmbeddedApp {
 }
 
 impl AppBuilder {
-    fn build_embedded(mut self, raster: (u32, u32), cancellation: Arc<AtomicBool>) -> Result<Box<App>> {
+    fn build_embedded(mut self, raster: (u32, u32), cancellation: Arc<AtomicBool>,
+        font: Option<&std::path::Path>) -> Result<Box<App>> {
         anyhow::ensure!(!cancellation.load(std::sync::atomic::Ordering::Acquire), "RFVP_SESSION_CANCELLED");
         let instance = wgpu::Instance::new(wgpu::InstanceDescriptor::new_without_display_handle());
         let adapter = futures::executor::block_on(instance.request_adapter(&wgpu::RequestAdapterOptions {
@@ -243,6 +241,11 @@ impl AppBuilder {
         take_pending_exit_dialog_request();
         crate::subsystem::components::syscalls::legacy::reset_native_session_state()?;
         self.world.fontface_manager.init_fontface()?;
+        if let Some(path) = font {
+            let id = self.world.fontface_manager.add_font_file(path)
+                .ok_or_else(|| anyhow::anyhow!("RFVP_FONT_INVALID"))?;
+            self.world.fontface_manager.set_forced_font(Some(id));
+        }
         crate::subsystem::global_savedata::try_load_global_savedata_v1(&mut self.world)?;
         self.script_engine.start_main(self.parser.get_entry_point());
         self.world.nls = self.parser.nls.clone();

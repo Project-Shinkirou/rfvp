@@ -311,6 +311,7 @@ struct LoadedFont {
     // engine enumerates installed/private fonts by face name rather than by file name.
     name: String,
     file_name: String,
+    path: PathBuf,
     font: Font,
 }
 
@@ -447,6 +448,7 @@ fn load_font_file(path: &Path) -> Result<Option<LoadedFont>> {
     Ok(Some(LoadedFont {
         name,
         file_name,
+        path: path.canonicalize()?,
         font,
     }))
 }
@@ -768,11 +770,14 @@ impl FontEnumerator {
         self.init_system_fallback_fonts();
     }
 
-    /// Append a font file at runtime (host-provided custom font).
-    ///
-    /// Returns the new font id (0-based index into the user font list), or
-    /// `None` when the file is missing/invalid/unsupported.
+    /// Register a host-provided font, reusing the loaded owner for the same file.
+    /// Returns its 0-based id, or `None` for missing/invalid/unsupported fonts.
     pub fn add_font_file(&mut self, path: &Path) -> Option<i32> {
+        if let Ok(canonical) = path.canonicalize() {
+            if let Some(index) = self.fonts.iter().position(|font| font.path == canonical) {
+                return Some(index as i32);
+            }
+        }
         match load_font_file(path) {
             Ok(Some(loaded)) => {
                 log::info!(
@@ -4050,6 +4055,8 @@ mod font_enumerator_tests {
         let id = fonts.add_font_file(&path).expect("font should load");
         assert_eq!(id, 0);
         assert_eq!(fonts.get_font_count(), 1);
+        assert_eq!(fonts.add_font_file(&path), Some(id));
+        assert_eq!(fonts.get_font_count(), 1);
 
         fonts.set_forced_font(Some(0));
         assert_eq!(fonts.forced_font_id(), Some(0));
@@ -4069,3 +4076,6 @@ mod font_enumerator_tests {
         assert_eq!(fonts.add_font_file(&dir.join("missing.ttf")), None);
     }
 }
+
+#[cfg(all(test, not(feature = "no_std")))]
+mod native_acceptance;
