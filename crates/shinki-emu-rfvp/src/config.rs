@@ -81,7 +81,7 @@ static SCHEMA: Schema = Schema([
     path_field(
         b"font_path",
         "游戏字体",
-        "所有游戏文字（含姓名和注音）的首选字体，路径相对游戏目录；缺字使用游戏内字体回退。",
+        "所有游戏文字（含姓名和注音）的首选字体，路径相对游戏目录；CJK 缺字先为整段选择覆盖更全的字体，再回退剩余缺字。",
     ),
     path_field(
         b"subtitle_map",

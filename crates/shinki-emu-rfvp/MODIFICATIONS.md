@@ -27,6 +27,8 @@ App、调度、VM、资源、renderer、游戏 UI、音视频与保存继续由 
 
 删除外挂翻译配置和运行时 offset→UTF-8 表，`PushString` 仅按 `script_encoding` 读取真实 HCB 字面量。`font_path` 为有界游戏相对路径，复用原生强制首选 face，覆盖正文、姓名、ruby 和内置 UI；不授权分发私有字体。`subtitle_map` 保留原 movie/BGM 时钟和 ASS 样式、显式私有字体及生命周期。转换生成的固定 `shinki-native-script.json` 只含 version=1 和完整 HCB SHA256；校验实际已加载脚本后，以原生 SubdirStorage 将该转换输出的存档/既读隔离到 `.shinki/rfvp/<hash>/save`，不参与译文/地址映射。标记损坏或不匹配明确拒绝，无标记游戏保持原路径。新脚本不继承旧日文/外挂表存档和既读。
 
+正文、姓名和 ruby 在布局前按整段 cmap 覆盖率选择字面：请求字体能覆盖 CJK 时保留；有缺字时选覆盖更多整段字符的游戏字体，再以原生链补剩余缺字。共享汉字、假名、标点不再先用 MS Gothic、遇到简体字才切换。樱花萌放补丁的 HanaMinA 覆盖实测 3,801 个译文字符，AaGuiqi、Ryumin、Yu Mincho 均不完整；配方的 `font/HanaMinA.ttf` 首选保持有效。字体仅从用户游戏目录读取，不新增字体资产或恢复 v1 翻译表。
+
 上述真实行为由实际加载的 descriptor 声明 `CAP_NATIVE_SCRIPT_IDENTITY=64` 和 `CAP_CONFIGURED_FONT_PRIORITY=128`；原生转换 profile 顶层要求 mask192。宿主必须依据实际 describe 结果拒绝缺失能力的旧核心并提示更新，不以版本字符串、文件存在或配置键名猜测支持。仅使用既有 ABI-v3 u64 能力位，不改变 C 布局/版本/fingerprint。
 
 原生 owner 使用独立 8 MiB 栈线程；平台线程只入队输入/控制及取得完成帧。三槽不可变 CPU 池满时跳过显示发布，VM、音频和存档继续执行。Ready/Pending/Unchanged 不以像素 hash 判断；已交付 lease 可跨关闭持有，归还只销毁纯 CPU owner。

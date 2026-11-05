@@ -330,17 +330,46 @@ impl LoadedFont {
 
 struct FontFallbackSet {
     primary: Font,
-    preferred_cjk: Vec<Font>,
     fallbacks: Vec<Font>,
 }
 
 impl FontFallbackSet {
-    fn new(primary: Font, preferred_cjk: Vec<Font>, fallbacks: Vec<Font>) -> Self {
-        Self {
-            primary,
-            preferred_cjk,
-            fallbacks,
+    fn new(primary: Font, fallbacks: Vec<Font>) -> Self {
+        Self { primary, fallbacks }
+    }
+
+    /// Resolve the entire run before measuring or drawing any glyph. Keep an
+    /// explicitly requested face when it covers the CJK text; otherwise use the
+    /// face with the best run coverage, including punctuation and Latin text.
+    fn for_text(mut self, text: &str) -> Self {
+        if !text.chars().any(|ch| is_cjk_text_char(ch) && !self.primary.has_glyph(ch)) {
+            return self;
         }
+        let coverage = |font: &Font| {
+            let mut cjk = 0usize;
+            let mut total = 0usize;
+            for ch in text.chars().filter(|ch| !ch.is_whitespace()) {
+                if font.has_glyph(ch) {
+                    cjk += usize::from(is_cjk_text_char(ch));
+                    total += 1;
+                }
+            }
+            (cjk, total)
+        };
+        let mut best = coverage(&self.primary);
+        let mut selected = None;
+        for (index, font) in self.fallbacks.iter().enumerate() {
+            let score = coverage(font);
+            if score > best {
+                best = score;
+                selected = Some(index);
+            }
+        }
+        if let Some(index) = selected {
+            // Preserve the requested face as a fallback for any remaining holes.
+            core::mem::swap(&mut self.primary, &mut self.fallbacks[index]);
+        }
+        self
     }
 
     fn primary(&self) -> &Font {
@@ -348,21 +377,10 @@ impl FontFallbackSet {
     }
 
     fn for_char(&self, ch: char) -> &Font {
-        // The original engine selects one HFONT for the text style and asks GDI
-        // to rasterize every glyph with that face. Therefore the selected primary
-        // face must win whenever it actually contains the glyph. A packaged CJK
-        // font is only a fallback for characters missing from the selected face.
-        //
-        // Checking preferred_cjk first made ordinary Japanese kanji use a different
-        // face from the requested MS Gothic face, which also changed vertical
-        // metrics and shifted option text inside its fixed GDI character cell.
+        // The whole-run face wins for every glyph it contains. Only actual
+        // cmap holes reach the fallback chain, never ordinary shared kanji.
         if self.primary.has_glyph(ch) {
             return &self.primary;
-        }
-        if is_cjk_text_char(ch) {
-            if let Some(font) = self.preferred_cjk.iter().find(|font| font.has_glyph(ch)) {
-                return font;
-            }
         }
         self.fallbacks
             .iter()
@@ -376,9 +394,7 @@ fn is_cjk_text_char(ch: char) -> bool {
         ch as u32,
         0x2E80..=0x2EFF
             | 0x3000..=0x303F
-            // Keep Japanese kana on the same preferred CJK face as kanji.
-            // Without these ranges, a Japanese sentence can mix the primary
-            // MS Gothic face for kana with a packaged CJK face for kanji.
+            // Kana, kanji and full-width punctuation belong to the same run.
             | 0x3040..=0x309F
             | 0x30A0..=0x30FF
             | 0x31C0..=0x31EF
@@ -797,11 +813,9 @@ impl FontEnumerator {
         }
     }
 
-    /// Force a user font (by id) as the primary font for all rendering.
-    ///
-    /// While forced, scripts' `TextFontSet` requests and the built-in MS
-    /// faces are ignored in favor of this font; missing glyphs still fall
-    /// back to the remaining loaded fonts, system fallbacks and built-ins.
+    /// Force a user font (by id) as the requested face for all rendering.
+    /// Scripts and built-ins cannot override it. A run with missing CJK glyphs
+    /// selects a better covering face; remaining holes use native fallbacks.
     /// `None` (or an invalid id) restores the default behavior.
     pub fn set_forced_font(&mut self, id: Option<i32>) {
         self.forced_font_id = match id {
@@ -812,12 +826,6 @@ impl FontEnumerator {
 
     pub fn forced_font_id(&self) -> Option<i32> {
         self.forced_font_id
-    }
-
-    fn is_font_forced(&self) -> bool {
-        self.forced_font_id
-            .map(|idx| (idx as usize) < self.fonts.len())
-            .unwrap_or(false)
     }
 
     fn forced_font(&self) -> Option<Font> {
@@ -943,18 +951,6 @@ impl FontEnumerator {
         &self.current_font_name
     }
 
-    fn current_font_is_user_loaded(&self) -> bool {
-        let cur = self.current_font_name.as_str();
-        self.fonts.iter().any(|loaded| {
-            loaded.matches_name(cur)
-                || std::path::PathBuf::from(cur)
-                    .file_name()
-                    .and_then(|x| x.to_str())
-                    .map(|legacy_file_name| loaded.matches_name(legacy_file_name))
-                    .unwrap_or(false)
-        })
-    }
-
     fn resolve_current_font(&self) -> Font {
         let cur = self.current_font_name.as_str();
         if cur.eq_ignore_ascii_case("MS Gothic") || cur.eq_ignore_ascii_case("ＭＳ ゴシック")
@@ -1022,49 +1018,19 @@ impl FontEnumerator {
 
     fn get_font_fallback_set(&self, id: i32) -> FontFallbackSet {
         let primary = self.get_font(id);
-        let prefer_game_cjk = if self.is_font_forced() {
-            // The forced font is already the primary; do not re-order CJK
-            // fallbacks around it.
-            false
-        } else {
-            match id {
-                FONTFACE_MS_GOTHIC | FONTFACE_MS_MINCHO | FONTFACE_MS_PGOTHIC | FONTFACE_MS_PMINCHO => {
-                    true
-                }
-                FONTFACE_CURRENT => !self.current_font_is_user_loaded(),
-                _ => false,
-            }
-        };
-        let mut preferred_cjk = if prefer_game_cjk {
-            Vec::with_capacity(self.fonts.len() + self.system_fallback_fonts.len())
-        } else {
-            Vec::new()
-        };
         let mut fallbacks =
             Vec::with_capacity(self.fonts.len() + self.system_fallback_fonts.len() + 4);
-
-        // Chinese localizations often ship a CJK font but still request one of
-        // the original MS Gothic faces in script. For built-in/default faces,
-        // let those packaged fonts own CJK glyphs even when MS Gothic has a
-        // Japanese glyph for the same codepoint.
         for loaded in &self.fonts {
-            if prefer_game_cjk {
-                preferred_cjk.push(loaded.font.clone());
-            }
             fallbacks.push(loaded.font.clone());
         }
         for loaded in &self.system_fallback_fonts {
-            if prefer_game_cjk {
-                preferred_cjk.push(loaded.font.clone());
-            }
             fallbacks.push(loaded.font.clone());
         }
-
         fallbacks.push(self.sys_ms_gothic.clone());
         fallbacks.push(self.sys_ms_mincho.clone());
         fallbacks.push(self.sys_ms_pgothic.clone());
         fallbacks.push(self.sys_ms_pmincho.clone());
-        FontFallbackSet::new(primary, preferred_cjk, fallbacks)
+        FontFallbackSet::new(primary, fallbacks)
     }
 
     pub fn get_font_name(&self, id: i32) -> Option<String> {
@@ -1197,7 +1163,7 @@ impl FontEnumerator {
     }
 
     fn get_font_fallback_set(&self, id: i32) -> FontFallbackSet {
-        FontFallbackSet::new(self.get_font(id), Vec::new(), Vec::new())
+        FontFallbackSet::new(self.get_font(id), Vec::new())
     }
 
     pub fn get_font_name(&self, id: i32) -> Option<String> {
@@ -2669,8 +2635,10 @@ impl TextItem {
             return Ok(());
         }
 
-        let main_fonts = fonts.get_font_fallback_set(self.text_font_idx1);
-        let ruby_fonts = fonts.get_font_fallback_set(self.text_font_idx2);
+        let main_fonts = fonts.get_font_fallback_set(self.text_font_idx1).for_text(&self.content_text);
+        // Resolve against the same run (including ruby) so a narrow ruby face
+        // cannot put shared CJK glyphs back into an unrelated font mid-sentence.
+        let ruby_fonts = fonts.get_font_fallback_set(self.text_font_idx2).for_text(&self.content_text);
 
         let render_scale = self.effective_render_scale();
 
@@ -4060,7 +4028,6 @@ mod font_enumerator_tests {
 
         fonts.set_forced_font(Some(0));
         assert_eq!(fonts.forced_font_id(), Some(0));
-        assert!(fonts.is_font_forced());
 
         // Invalid ids normalize to "no forced font".
         fonts.set_forced_font(Some(99));
@@ -4074,6 +4041,91 @@ mod font_enumerator_tests {
         assert_eq!(fonts.forced_font_id(), None);
 
         assert_eq!(fonts.add_font_file(&dir.join("missing.ttf")), None);
+    }
+
+    #[test]
+    fn missing_cjk_selects_one_face_for_shared_glyphs_and_ruby() {
+        let fonts = FontEnumerator::new();
+        assert!(!fonts.sys_ms_gothic.has_glyph('你'));
+        let text = "[中文|你]中文你";
+        let set = fonts.get_font_fallback_set(FONTFACE_MS_GOTHIC).for_text(text);
+        for ch in text.chars() {
+            assert!(set.primary().has_glyph(ch));
+            assert!(core::ptr::eq(set.for_char(ch), set.primary()));
+            assert_eq!(set.for_char(ch).rasterize(ch, 24.0).1,
+                fonts.sys_ms_pgothic.rasterize(ch, 24.0).1);
+        }
+
+        let mut selected = TextItem::new();
+        selected.loaded = true;
+        selected.w = 640;
+        selected.h = 120;
+        selected.text_font_idx1 = FONTFACE_MS_GOTHIC;
+        selected.text_font_idx2 = FONTFACE_MS_MINCHO;
+        selected.ruby_text_mode = 2;
+        selected.color1 = ColorItem::white();
+        selected.color2 = ColorItem::white();
+        selected.content_text = text.into();
+        selected.content_items = tokenize_content_text(text, 0, 2, 0);
+        let mut expected = selected.clone();
+        expected.text_font_idx1 = FONTFACE_MS_PGOTHIC;
+        expected.text_font_idx2 = FONTFACE_MS_PGOTHIC;
+        let gaiji = GaijiManager::new();
+        selected.rasterize_full(&fonts, &gaiji).unwrap();
+        expected.rasterize_full(&fonts, &gaiji).unwrap();
+        assert!(selected.pixel_buffer.chunks_exact(4).any(|pixel| pixel[3] != 0));
+        assert_eq!((selected.surface_origin_x_px, selected.surface_origin_y_px,
+            selected.surface_width_px, selected.surface_height_px),
+            (expected.surface_origin_x_px, expected.surface_origin_y_px,
+            expected.surface_width_px, expected.surface_height_px));
+        assert_eq!(selected.pixel_buffer, expected.pixel_buffer);
+    }
+
+    #[test]
+    fn covering_requested_face_keeps_japanese_metrics() {
+        let fonts = FontEnumerator::new();
+        let text = "日本語かなカナABC。";
+        let set = fonts.get_font_fallback_set(FONTFACE_MS_MINCHO).for_text(text);
+        for ch in text.chars() {
+            assert!(core::ptr::eq(set.for_char(ch), set.primary()));
+            assert_eq!(set.for_char(ch).rasterize(ch, 24.0).1,
+                fonts.sys_ms_mincho.rasterize(ch, 24.0).1);
+        }
+    }
+
+    #[test]
+    fn partially_covering_run_uses_real_glyph_fallback() {
+        let fonts = FontEnumerator::new();
+        let text = "中文你专专";
+        let set = fonts.get_font_fallback_set(FONTFACE_MS_PGOTHIC).for_text(text);
+        assert!(!set.primary().has_glyph('你'));
+        assert!(set.primary().has_glyph('专'));
+        assert!(set.for_char('你').has_glyph('你'));
+        assert!(!core::ptr::eq(set.for_char('你'), set.primary()));
+        assert_eq!(set.for_char('你').rasterize('你', 24.0).1,
+            fonts.sys_ms_pgothic.rasterize('你', 24.0).1);
+    }
+
+    #[test]
+    fn configured_narrow_face_uses_covering_loaded_face_for_whole_run() {
+        let directory = Path::new(env!("CARGO_MANIFEST_DIR")).join("src/subsystem/resources/fonts");
+        let mut fonts = FontEnumerator::new();
+        let narrow = fonts.add_font_file(&directory.join("MSGOTHIC.TTF")).unwrap();
+        let covering = fonts.add_font_file(&directory.join("MS-PGothic.ttf")).unwrap();
+        fonts.set_forced_font(Some(narrow));
+        fonts.set_current_font_name("MS Mincho");
+        let text = "中文你。ABC";
+        for style in [FONTFACE_CURRENT, FONTFACE_MS_GOTHIC, FONTFACE_MS_MINCHO] {
+            let set = fonts.get_font_fallback_set(style).for_text(text);
+            for ch in text.chars() {
+                assert!(core::ptr::eq(set.for_char(ch), set.primary()));
+                assert_eq!(set.for_char(ch).rasterize(ch, 24.0).1,
+                    fonts.fonts[covering as usize].font.rasterize(ch, 24.0).1);
+            }
+        }
+        fonts.set_forced_font(Some(covering));
+        let set = fonts.get_font_fallback_set(FONTFACE_MS_MINCHO).for_text(text);
+        assert!(text.chars().all(|ch| core::ptr::eq(set.for_char(ch), set.primary())));
     }
 }
 

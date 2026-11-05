@@ -54,7 +54,10 @@ If you want to run a translated game, currently we only support UTF-8 and GBK en
 Embedded builds consume translated literals directly from HCB using `script_encoding`; no external
 translation table or runtime string replacement is supported. `font_path` selects an explicit
 game-root-relative font as primary for dialogue, names, ruby and native UI, including styles that
-request a built-in face. Missing glyphs use the ordinary native fallback chain.
+request a built-in face. Before layout, a run with missing CJK glyphs selects the loaded face
+with the greatest coverage of the whole text, including ruby. Shared characters then stay on
+that face; only remaining cmap holes use the ordinary native fallback chain. A requested face
+that already covers the CJK run keeps its original metrics. No fonts are redistributed by this policy.
 
 Converted output may contain `shinki-native-script.json` (`version:1`, `sha256`: full lowercase HCB
 SHA-256). It contains no text or PC mappings and never participates in script decoding. A matching
