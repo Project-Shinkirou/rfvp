@@ -28,4 +28,12 @@ Kira 0.10.8 来自 [`Project-Shinkirou/kira@d2f10db15d9c451c7b2fd33043ae7732e75b
 
 ## WMV 解码来源
 
-WMV 由本仓库原生 `crates/na_wmv_player` 及原生 Movie 路径解码、合成和播放音轨。上游 decoder 清单没有独立 `license` 字段，随完整 fork 保留上游许可与来源记录；本记录不将 FFmpeg 算法名称视为复制 FFmpeg 源码或额外许可授权，也不据此假定 LGPL/GPL/MIT。发布前仍需核实实际覆盖范围。
+`crates/na_wmv_player` 中的 WMA Pro 解码器 `src/wma/pro.rs` 和码表
+`src/wma/pro_tables.rs` 均保留 `SPDX-License-Identifier: LGPL-2.1-or-later`
+文件头，分别对应 FFmpeg 的 `libavcodec/wmaprodec.c` 和
+`libavcodec/wmaprodata.h`。WMV2、VC-1、ASF 和 WMA v1/v2 中也有对照确认的
+FFmpeg 移植代码，来源及著作权声明见 [WMV/WMA 许可说明](../na_wmv_player/NOTICE.md)。
+
+`wmv-decoder` 的 Cargo 清单用 `MPL-2.0 AND LGPL-2.1-or-later` 记录包内既有条款：
+RFVP/Siglus 项目代码保留 MPL-2.0，来自 FFmpeg 的部分保留 LGPL-2.1-or-later。
+两份许可文本随 crate 提供。发布前仍须按实际链接产物核对并落实对应源码及重新链接义务。
