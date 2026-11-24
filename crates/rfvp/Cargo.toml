@@ -31,7 +31,7 @@ required-features = ["gpu-render"]
 
 [dependencies]
 sha2 = { version = "0.10", default-features = false }
-roukaku-subtitle = { git = "https://github.com/Project-Shinkirou/RoukakuEngine", rev = "b82c56fd29d4db2ed03ce26be30d6d3d1b4d83dc", optional = true }
+roukaku-subtitle = { git = "https://github.com/Project-Shinkirou/RoukakuEngine", rev = "584fdc85e8ffb00b285f6f822d822bad7b5def45", optional = true }
 anyhow = { version = "1.0.79", default-features = false, optional = true }
 encoding_rs = { version = "0.8.33", optional = true }
 log = { version = "0.4.20", optional = true }
