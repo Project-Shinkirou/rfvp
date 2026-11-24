@@ -4915,13 +4915,21 @@ dependencies = [
 ]
 
 [[package]]
-name = "roukaku-subtitle"
+name = "roukaku-libass"
 version = "0.1.0"
-source = "git+https://github.com/Project-Shinkirou/RoukakuEngine?rev=374a7a20780153766d9d0256e4cf4d7754fd02f9#374a7a20780153766d9d0256e4cf4d7754fd02f9"
+source = "git+https://github.com/Project-Shinkirou/RoukakuEngine?rev=b82c56fd29d4db2ed03ce26be30d6d3d1b4d83dc#b82c56fd29d4db2ed03ce26be30d6d3d1b4d83dc"
 dependencies = [
- "cc",
  "pkg-config",
  "vcpkg",
+]
+
+[[package]]
+name = "roukaku-subtitle"
+version = "0.1.0"
+source = "git+https://github.com/Project-Shinkirou/RoukakuEngine?rev=b82c56fd29d4db2ed03ce26be30d6d3d1b4d83dc#b82c56fd29d4db2ed03ce26be30d6d3d1b4d83dc"
+dependencies = [
+ "cc",
+ "roukaku-libass",
 ]
 
 [[package]]
