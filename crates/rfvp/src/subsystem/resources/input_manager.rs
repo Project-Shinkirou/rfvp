@@ -7,8 +7,6 @@ use alloc::{
 };
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::{sync::Mutex, vec};
-#[cfg(any(feature = "gpu-render", feature = "soft-render-desktop"))]
-use winit::keyboard::NamedKey;
 
 #[derive(Debug)]
 pub struct CriticalSection {
@@ -275,37 +273,6 @@ impl InputManager {
         self.cursor_in = in_screen;
     }
 
-    #[cfg(any(feature = "gpu-render", feature = "soft-render-desktop"))]
-    pub fn keymap(&self, key: winit::keyboard::Key) -> Option<KeyCode> {
-        match key {
-            winit::keyboard::Key::Named(NamedKey::Shift) => Some(KeyCode::Shift),
-            winit::keyboard::Key::Named(NamedKey::Control) => Some(KeyCode::Ctrl),
-
-            winit::keyboard::Key::Named(NamedKey::Escape) => Some(KeyCode::Esc),
-            winit::keyboard::Key::Named(NamedKey::Enter) => Some(KeyCode::Enter),
-            winit::keyboard::Key::Named(NamedKey::Space) => Some(KeyCode::Space),
-            winit::keyboard::Key::Named(NamedKey::ArrowUp) => Some(KeyCode::UpArrow),
-            winit::keyboard::Key::Named(NamedKey::ArrowDown) => Some(KeyCode::DownArrow),
-            winit::keyboard::Key::Named(NamedKey::ArrowLeft) => Some(KeyCode::LeftArrow),
-            winit::keyboard::Key::Named(NamedKey::ArrowRight) => Some(KeyCode::RightArrow),
-
-            winit::keyboard::Key::Named(NamedKey::F1) => Some(KeyCode::F1),
-            winit::keyboard::Key::Named(NamedKey::F2) => Some(KeyCode::F2),
-            winit::keyboard::Key::Named(NamedKey::F3) => Some(KeyCode::F3),
-            winit::keyboard::Key::Named(NamedKey::F4) => Some(KeyCode::F4),
-            winit::keyboard::Key::Named(NamedKey::F5) => Some(KeyCode::F5),
-            winit::keyboard::Key::Named(NamedKey::F6) => Some(KeyCode::F6),
-            winit::keyboard::Key::Named(NamedKey::F7) => Some(KeyCode::F7),
-            winit::keyboard::Key::Named(NamedKey::F8) => Some(KeyCode::F8),
-            winit::keyboard::Key::Named(NamedKey::F9) => Some(KeyCode::F9),
-            winit::keyboard::Key::Named(NamedKey::F10) => Some(KeyCode::F10),
-            winit::keyboard::Key::Named(NamedKey::F11) => Some(KeyCode::F11),
-            winit::keyboard::Key::Named(NamedKey::F12) => Some(KeyCode::F12),
-            winit::keyboard::Key::Named(NamedKey::Tab) => Some(KeyCode::Tab),
-            _ => None,
-        }
-    }
-
     #[inline]
     fn bit_for(k: KeyCode) -> u32 {
         1u32 << (k as u32)
@@ -420,20 +387,6 @@ impl InputManager {
         }
 
         self.latch_virtual_click_edges(prev_bits, self.new_input_state);
-    }
-
-    #[cfg(any(feature = "gpu-render", feature = "soft-render-desktop"))]
-    pub fn notify_keydown(&mut self, key: winit::keyboard::Key, repeat: bool) {
-        if let Some(keycode) = self.keymap(key) {
-            self.notify_keycode_down(keycode, repeat);
-        }
-    }
-
-    #[cfg(any(feature = "gpu-render", feature = "soft-render-desktop"))]
-    pub fn notify_keyup(&mut self, key: winit::keyboard::Key) {
-        if let Some(keycode) = self.keymap(key) {
-            self.notify_keycode_up(keycode);
-        }
     }
 
     pub fn notify_mouse_down(&mut self, keycode: KeyCode) {

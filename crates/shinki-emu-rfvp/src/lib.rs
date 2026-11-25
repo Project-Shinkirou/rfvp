@@ -1,4 +1,6 @@
 //! Thin C ownership boundary around RFVP's native Embedded App and worker.
+#[cfg(all(target_os = "android", feature = "dynamic-plugin-export"))]
+mod android_context;
 mod config;
 mod input;
 mod platform;
@@ -99,6 +101,15 @@ fn initialized() -> anyhow::Result<()> {
 
 unsafe extern "C" fn initialize(diagnostics: *const Diagnostics, error: *mut Error) -> Status {
     boundary(error, "SHINKI_EMU_FAMILY_DIAGNOSTIC_INIT", || {
+        #[cfg(all(target_os = "android", feature = "dynamic-plugin-export"))]
+        if !rfvp::android_context::is_initialized() {
+            return Ok(failure(
+                error,
+                INVALID_STATE,
+                "RFVP_ANDROID_CONTEXT",
+                "activate the Android context before initializing the core",
+            ));
+        }
         let diagnostics = unsafe { diagnostics.as_ref() }
             .ok_or_else(|| anyhow::anyhow!("missing diagnostic sink"))?;
         anyhow::ensure!(
@@ -483,13 +494,19 @@ unsafe extern "C" fn close(session: Session, error: *mut Error) -> Status {
         Ok(OK)
     })
 }
-unsafe extern "C" fn extension(_name: Bytes, _version: u32, output: *mut *const c_void) -> Status {
+unsafe extern "C" fn extension(name: Bytes, version: u32, output: *mut *const c_void) -> Status {
     if output.is_null() {
         return INVALID_ARGUMENT;
     }
     unsafe {
         *output = std::ptr::null();
     }
+    #[cfg(all(target_os = "android", feature = "dynamic-plugin-export"))]
+    if let Some(table) = unsafe { android_context::extension(name, version) } {
+        unsafe { *output = table };
+        return OK;
+    }
+    let _ = (name, version);
     UNSUPPORTED
 }
 
@@ -531,13 +548,9 @@ pub unsafe extern "C" fn shinki_emu_query(version: u32, output: *mut *const Core
 #[cfg(test)]
 mod tests {
     use super::*;
-    use rfvp::app::embedded::session::{Endpoint, PointerRequest};
+    use rfvp::app::embedded::session::{Endpoint, Input, PointerRequest};
     use std::sync::atomic::AtomicU32;
     use std::time::{Duration, Instant};
-    use winit::{
-        event::WindowEvent,
-        keyboard::{Key, PhysicalKey},
-    };
 
     struct NoHost;
     impl Platform for NoHost {
@@ -582,8 +595,7 @@ mod tests {
         fn set_paused(&mut self, _: bool) -> anyhow::Result<()> {
             Ok(())
         }
-        fn input_key(&mut self, _: PhysicalKey, _: Key, _: bool, _: bool) {}
-        fn input_window_event(&mut self, _: &WindowEvent) {}
+        fn input(&mut self, _: &Input) {}
         fn begin_capture(&mut self) -> anyhow::Result<()> {
             Ok(())
         }

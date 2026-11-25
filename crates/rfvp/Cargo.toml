@@ -42,6 +42,7 @@ bincode = { version = "1.3.3", optional = true }
 # Save-state encoding for the no_std builds, where bincode (std only) is not available.
 postcard = { version = "1", default-features = false, features = ["alloc"], optional = true }
 twofloat = { version = "0.7.0", default-features = false, optional = true }
+cursor-icon = { version = "1.2", optional = true }
 winit = {version = "0.30.5", features = ["rwh_05"], optional = true}
 wgpu = { version = "30", features = ["spirv"], optional = true }
 softbuffer = { version = "0.4.8", optional = true }
@@ -108,7 +109,7 @@ anzu-hal = { path = "../anzu-hal", optional = true }
 # Keep native movie support enabled by default for backward compatibility.
 default = ["runtime-core-deps", "gpu-render", "android-game-activity", "audio", "mp4", "native-video", "random", "uuid-support", "image-formats", "bevy-utils", "fontdue-compat", "cursor-ani", "zlib-flate2", "logging", "mimalloc"]
 embedded = ["dep:parking_lot", "subtitles"]
-subtitles = ["runtime-core-deps", "gpu-render", "dep:roukaku-subtitle"]
+subtitles = ["gpu-core", "dep:roukaku-subtitle"]
 
 # mimalloc as the global allocator (desktop and mobile; never with `no_std`).
 mimalloc = ["dep:mimalloc"]
@@ -200,8 +201,10 @@ runtime-core-deps = [
     "dep:regex",
 ]
 
-# Existing wgpu renderer. Enabled by default for backward compatibility.
-gpu-render = ["runtime-core-deps", "dep:clap", "dep:winit", "dep:wgpu", "dep:egui", "dep:egui-wgpu", "dep:ndk-context", "random", "cursor-ani", "zlib-flate2", "logging"]
+# The real App renderer and VM are shared by windowed and embedded builds.
+gpu-core = ["runtime-core-deps", "dep:cursor-icon", "dep:egui", "dep:wgpu", "dep:ndk-context", "random", "zlib-flate2", "logging"]
+# Standalone wgpu renderer with Winit window and event loop.
+gpu-render = ["gpu-core", "dep:clap", "dep:winit", "dep:egui-wgpu", "cursor-ani"]
 
 # Standalone Android launcher glue (GameActivity + the `android_main` stub).
 # Hosts that own the activity (ShinkiEMU uses NativeActivity) leave it off: a
@@ -218,7 +221,7 @@ soft-render = ["soft-render-desktop"]
 
 # Desktop host for the CPU/software renderer. This is intentionally separate
 # from `soft-render-core` so OS/UEFI-style builds do not pull windowing crates.
-soft-render-desktop = ["runtime-core-deps", "soft-render-core", "audio", "native-video", "image-formats", "cursor-ani", "zlib-flate2", "dep:winit", "dep:softbuffer", "logging"]
+soft-render-desktop = ["runtime-core-deps", "soft-render-core", "audio", "native-video", "image-formats", "cursor-ani", "zlib-flate2", "dep:winit", "dep:cursor-icon", "dep:softbuffer", "logging"]
 
 
 # Desktop/normal logger implementation. Disabled for rfvp-os/UEFI so fern/colored/is-terminal are not pulled into UEFI builds.

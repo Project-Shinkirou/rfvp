@@ -2,10 +2,7 @@ use crate::font::{Font, LineMetrics};
 use glam::{Mat4, Vec2, Vec3, Vec4};
 use image::{DynamicImage, Rgba, RgbaImage};
 use wgpu::util::DeviceExt;
-use winit::{
-    event::{MouseButton, WindowEvent},
-    keyboard::{KeyCode, PhysicalKey},
-};
+use crate::subsystem::event_handler::{Input, MenuKey, PointerButton};
 
 use crate::subsystem::world::GameData;
 
@@ -122,26 +119,25 @@ impl ExitConfirmUi {
         self.outcome.take()
     }
 
-    pub fn handle_key(&mut self, key: PhysicalKey, pressed: bool, repeat: bool) -> bool {
+    fn handle_key(&mut self, key: Option<MenuKey>, pressed: bool, repeat: bool) -> bool {
         if !self.active {
             return false;
         }
         if pressed && !repeat {
             match key {
-                PhysicalKey::Code(KeyCode::Escape) => self.cancel(),
-                PhysicalKey::Code(KeyCode::Enter | KeyCode::NumpadEnter | KeyCode::Space) =>
-                    self.confirm_selected(),
-                PhysicalKey::Code(KeyCode::ArrowLeft | KeyCode::ArrowUp | KeyCode::Tab |
-                    KeyCode::ArrowRight | KeyCode::ArrowDown) => self.toggle_selection(),
+                Some(MenuKey::Escape) => self.cancel(),
+                Some(MenuKey::Confirm) => self.confirm_selected(),
+                Some(MenuKey::Left | MenuKey::Up | MenuKey::Tab | MenuKey::Right | MenuKey::Down) =>
+                    self.toggle_selection(),
                 _ => {}
             }
         }
         true
     }
 
-    pub fn handle_window_event(
+    pub fn handle_input(
         &mut self,
-        event: &WindowEvent,
+        input: &Input,
         surface_size: (u32, u32),
         virtual_size: (u32, u32),
     ) -> bool {
@@ -149,22 +145,22 @@ impl ExitConfirmUi {
             return false;
         }
 
-        match event {
-            WindowEvent::KeyboardInput { event, .. } => {
-                self.handle_key(event.physical_key, event.state.is_pressed(), event.repeat)
+        match input {
+            Input::Key { physical, pressed, repeat, .. } => {
+                self.handle_key(*physical, *pressed, *repeat)
             }
-            WindowEvent::CursorMoved { position, .. } => {
+            Input::PointerMove { x, y } => {
                 self.hover =
-                    map_window_to_virtual(position.x, position.y, surface_size, virtual_size)
+                    map_window_to_virtual(*x, *y, surface_size, virtual_size)
                         .and_then(|(vx, vy)| self.hit_test_button(vx, vy, virtual_size));
                 self.dirty = true;
                 true
             }
-            WindowEvent::MouseInput { state, button, .. } => {
-                if *button != MouseButton::Left {
+            Input::PointerButton { button, pressed } => {
+                if *button != PointerButton::Primary {
                     return true;
                 }
-                if state.is_pressed() {
+                if *pressed {
                     self.pressed = self.hover;
                     if let Some(btn) = self.hover {
                         self.selected = btn;
@@ -184,7 +180,7 @@ impl ExitConfirmUi {
                 }
                 true
             }
-            WindowEvent::CursorEntered { .. } | WindowEvent::CursorLeft { .. } => {
+            Input::PointerEntered | Input::PointerLeft => {
                 self.hover = None;
                 self.pressed = None;
                 self.dirty = true;

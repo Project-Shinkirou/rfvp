@@ -1,63 +1,50 @@
-use rfvp::app::embedded::session::Input;
+use rfvp::app::embedded::session::{Input, MenuKey, PointerButton, Wheel};
+use rfvp::subsystem::resources::input_manager::KeyCode;
 use shinki_emu_abi::*;
-use winit::{
-    dpi::PhysicalPosition,
-    event::{DeviceId, ElementState, MouseButton, MouseScrollDelta, TouchPhase, WindowEvent},
-    keyboard::{Key, KeyCode, NamedKey, NativeKeyCode, PhysicalKey},
-};
 
-fn physical(name: &str) -> PhysicalKey {
-    let key = match name {
-        "Escape" => KeyCode::Escape,
-        "Enter" => KeyCode::Enter,
-        "NumpadEnter" => KeyCode::NumpadEnter,
-        "Space" => KeyCode::Space,
-        "Tab" => KeyCode::Tab,
-        "F11" => KeyCode::F11,
-        "ArrowLeft" => KeyCode::ArrowLeft,
-        "ArrowRight" => KeyCode::ArrowRight,
-        "ArrowUp" => KeyCode::ArrowUp,
-        "ArrowDown" => KeyCode::ArrowDown,
-        "Home" => KeyCode::Home,
-        "End" => KeyCode::End,
-        "PageUp" => KeyCode::PageUp,
-        "PageDown" => KeyCode::PageDown,
-        _ => return PhysicalKey::Unidentified(NativeKeyCode::Unidentified),
-    };
-    PhysicalKey::Code(key)
+fn physical(name: &str) -> Option<MenuKey> {
+    Some(match name {
+        "Escape" => MenuKey::Escape,
+        "Enter" | "NumpadEnter" | "Space" => MenuKey::Confirm,
+        "Tab" => MenuKey::Tab,
+        "F11" => MenuKey::Fullscreen,
+        "ArrowLeft" => MenuKey::Left,
+        "ArrowRight" => MenuKey::Right,
+        "ArrowUp" => MenuKey::Up,
+        "ArrowDown" => MenuKey::Down,
+        "Home" => MenuKey::Home,
+        "End" => MenuKey::End,
+        "PageUp" => MenuKey::PageUp,
+        "PageDown" => MenuKey::PageDown,
+        _ => return None,
+    })
 }
-fn logical(name: &str) -> Key {
-    let named = match name {
-        "Escape" => NamedKey::Escape,
-        "Enter" => NamedKey::Enter,
-        "Space" | " " => NamedKey::Space,
-        "Shift" => NamedKey::Shift,
-        "Control" => NamedKey::Control,
-        "Alt" => NamedKey::Alt,
-        "Tab" => NamedKey::Tab,
-        "ArrowLeft" => NamedKey::ArrowLeft,
-        "ArrowRight" => NamedKey::ArrowRight,
-        "ArrowUp" => NamedKey::ArrowUp,
-        "ArrowDown" => NamedKey::ArrowDown,
-        "Home" => NamedKey::Home,
-        "End" => NamedKey::End,
-        "PageUp" => NamedKey::PageUp,
-        "PageDown" => NamedKey::PageDown,
-        "F1" => NamedKey::F1,
-        "F2" => NamedKey::F2,
-        "F3" => NamedKey::F3,
-        "F4" => NamedKey::F4,
-        "F5" => NamedKey::F5,
-        "F6" => NamedKey::F6,
-        "F7" => NamedKey::F7,
-        "F8" => NamedKey::F8,
-        "F9" => NamedKey::F9,
-        "F10" => NamedKey::F10,
-        "F11" => NamedKey::F11,
-        "F12" => NamedKey::F12,
-        _ => return Key::Character(name.into()),
-    };
-    Key::Named(named)
+fn logical(name: &str) -> Option<KeyCode> {
+    Some(match name {
+        "Escape" => KeyCode::Esc,
+        "Enter" => KeyCode::Enter,
+        "Space" | " " => KeyCode::Space,
+        "Shift" => KeyCode::Shift,
+        "Control" => KeyCode::Ctrl,
+        "Tab" => KeyCode::Tab,
+        "ArrowLeft" => KeyCode::LeftArrow,
+        "ArrowRight" => KeyCode::RightArrow,
+        "ArrowUp" => KeyCode::UpArrow,
+        "ArrowDown" => KeyCode::DownArrow,
+        "F1" => KeyCode::F1,
+        "F2" => KeyCode::F2,
+        "F3" => KeyCode::F3,
+        "F4" => KeyCode::F4,
+        "F5" => KeyCode::F5,
+        "F6" => KeyCode::F6,
+        "F7" => KeyCode::F7,
+        "F8" => KeyCode::F8,
+        "F9" => KeyCode::F9,
+        "F10" => KeyCode::F10,
+        "F11" => KeyCode::F11,
+        "F12" => KeyCode::F12,
+        _ => return None,
+    })
 }
 
 pub unsafe fn translate(
@@ -81,8 +68,6 @@ pub unsafe fn translate(
         {
             return Err(STALE_CONTEXT);
         }
-        // These events carry no OS device ownership; only the native input mapper consumes them.
-        let device_id = DeviceId::dummy();
         match event.kind {
             INPUT_KEY => native.push(Input::Key {
                 physical: physical(unsafe { event.physical_key.text(128)? }),
@@ -90,36 +75,18 @@ pub unsafe fn translate(
                 pressed: event.pressed != 0,
                 repeat: event.repeat != 0,
             }),
-            INPUT_POINTER_MOVE => native.push(Input::Window(WindowEvent::CursorMoved {
-                device_id,
-                position: PhysicalPosition::new(event.x, event.y),
-            })),
+            INPUT_POINTER_MOVE => native.push(Input::PointerMove { x: event.x, y: event.y }),
             INPUT_POINTER_BUTTON => {
                 let button = match event.button {
-                    BUTTON_PRIMARY => MouseButton::Left,
-                    BUTTON_SECONDARY => MouseButton::Right,
-                    BUTTON_MIDDLE => MouseButton::Middle,
+                    BUTTON_PRIMARY => PointerButton::Primary,
+                    BUTTON_SECONDARY => PointerButton::Secondary,
+                    BUTTON_MIDDLE => PointerButton::Other,
                     _ => return Err(INVALID_ARGUMENT),
                 };
-                native.push(Input::Window(WindowEvent::CursorMoved {
-                    device_id,
-                    position: PhysicalPosition::new(event.x, event.y),
-                }));
-                native.push(Input::Window(WindowEvent::MouseInput {
-                    device_id,
-                    button,
-                    state: if event.pressed != 0 {
-                        ElementState::Pressed
-                    } else {
-                        ElementState::Released
-                    },
-                }));
+                native.push(Input::PointerMove { x: event.x, y: event.y });
+                native.push(Input::PointerButton { button, pressed: event.pressed != 0 });
             }
-            INPUT_WHEEL => native.push(Input::Window(WindowEvent::MouseWheel {
-                device_id,
-                delta: MouseScrollDelta::LineDelta(event.x as f32, event.y as f32),
-                phase: TouchPhase::Moved,
-            })),
+            INPUT_WHEEL => native.push(Input::Wheel(Wheel::Lines(event.y as f32))),
             INPUT_WINDOW => {
                 if event.window.focused > 1
                     || event.window.suspended > 1
@@ -128,9 +95,7 @@ pub unsafe fn translate(
                 {
                     return Err(INVALID_ARGUMENT);
                 }
-                native.push(Input::Window(WindowEvent::Focused(
-                    event.window.focused != 0,
-                )));
+                native.push(Input::Focus(event.window.focused != 0));
                 suspended = Some(event.window.suspended != 0);
                 // O/scale factor never mutate the configured R or script-visible L.
             }
@@ -172,16 +137,32 @@ mod tests {
     #[test]
     fn frame_pixels_are_not_scaled_again_at_abi_boundary() {
         let (events, _) = unsafe { translate(&[button(BUTTON_SECONDARY)], 7, 3) }.unwrap();
-        assert!(
-            matches!(&events[0], Input::Window(WindowEvent::CursorMoved { position, .. })
-            if position.x == 150.0 && position.y == 75.0)
-        );
         assert!(matches!(
-            &events[1],
-            Input::Window(WindowEvent::MouseInput {
-                button: MouseButton::Right,
-                ..
-            })
+            events.as_slice(),
+            [
+                Input::PointerMove { x: 150.0, y: 75.0 },
+                Input::PointerButton { button: PointerButton::Secondary, pressed: true }
+            ]
+        ));
+    }
+
+    #[test]
+    fn menu_physical_keys_do_not_replace_logical_game_keys() {
+        let mut event = button(0);
+        event.kind = INPUT_KEY;
+        event.physical_key = Bytes::new(b"NumpadEnter");
+        event.logical_key = Bytes::new(b"Enter");
+        let mut held = event;
+        held.physical_key = Bytes::new(b"ControlLeft");
+        held.logical_key = Bytes::new(b"Control");
+        held.repeat = 1;
+        let (events, _) = unsafe { translate(&[event, held], 7, 3) }.unwrap();
+        assert!(matches!(
+            events.as_slice(),
+            [
+                Input::Key { physical: Some(MenuKey::Confirm), logical: Some(KeyCode::Enter), pressed: true, repeat: false },
+                Input::Key { physical: None, logical: Some(KeyCode::Ctrl), pressed: true, repeat: true }
+            ]
         ));
     }
 

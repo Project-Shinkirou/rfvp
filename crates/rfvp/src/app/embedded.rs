@@ -1,6 +1,7 @@
 //! Windowless endpoint for the original App. VM, scene, UI, media and saves remain native.
 use super::*;
 use crate::rfvp_render::render_target::RenderTargetReadback;
+use crate::subsystem::event_handler::{Input, MenuKey, update_input_events};
 use crate::subsystem::anzu_scene::AnzuScene;
 use std::sync::atomic::AtomicBool;
 use session::Endpoint as _;
@@ -119,42 +120,26 @@ impl session::Endpoint for EmbeddedApp {
         Ok(())
     }
 
-    fn input_key(&mut self, physical: PhysicalKey, logical: winit::keyboard::Key, pressed: bool, repeat: bool) {
-        if self.app.exit_confirm_ui.handle_key(physical, pressed, repeat) {
+    fn input(&mut self, input: &Input) {
+        let raster = self.raster_size();
+        if self.app.exit_confirm_ui.handle_input(input, raster, self.app.virtual_size) {
             if let Some(outcome) = self.app.exit_confirm_ui.take_outcome() {
                 self.app.apply_exit_confirm_outcome(outcome);
             }
             return;
         }
         let mut gd = gd_write(&self.app.game_data);
-        if self.app.legacy_save_load_ui.handle_key(physical, pressed, repeat, &mut gd) {
+        if self.app.legacy_save_load_ui.handle_input(input, raster, self.app.virtual_size, &mut gd) {
             if !self.app.legacy_save_load_ui.is_active() { set_legacy_save_load_menu_visible(false); }
             return;
         }
-        if physical == PhysicalKey::Code(KeyCode::F11) && pressed && !repeat {
+        if matches!(input, Input::Key { physical: Some(MenuKey::Fullscreen), pressed: true, repeat: false, .. }) {
             let current = gd.get_render_flag();
             let last = if matches!(self.app.last_fullscreen_flag, 1 | 2) { self.app.last_fullscreen_flag } else { 1 };
             gd.set_render_flag(if matches!(current, 1 | 2) { 0 } else { last });
         }
-        if pressed { gd.inputs_manager.notify_keydown(logical, repeat); }
-        else { gd.inputs_manager.notify_keyup(logical); }
-    }
-
-    fn input_window_event(&mut self, event: &WindowEvent) {
-        let raster = self.raster_size();
-        if self.app.exit_confirm_ui.handle_window_event(event, raster, self.app.virtual_size) {
-            if let Some(outcome) = self.app.exit_confirm_ui.take_outcome() {
-                self.app.apply_exit_confirm_outcome(outcome);
-            }
-            return;
-        }
-        let mut gd = gd_write(&self.app.game_data);
-        if self.app.legacy_save_load_ui.handle_window_event(event, raster, self.app.virtual_size, &mut gd) {
-            if !self.app.legacy_save_load_ui.is_active() { set_legacy_save_load_menu_visible(false); }
-            return;
-        }
         // Window resize is a Presenter concern. Only frame-pixel input reaches this mapper.
-        update_input_events(event, &mut gd, raster, self.app.virtual_size);
+        update_input_events(input, &mut gd, raster, self.app.virtual_size);
     }
 
     fn begin_capture(&mut self) -> Result<()> {
@@ -268,9 +253,15 @@ impl AppBuilder {
         let mut app = Box::new(App {
             config: self.config, game_data, title: self.title, vm_worker,
             pending_vm_frame_ms: 0, pending_vm_frame_ms_valid: false, scheduler: self.scheduler,
-            layer_machine: SceneMachine { current_scene: self.scene }, window: None,
-            native_scale_factor: raster.0 as f64 / self.size.0 as f64, pump_mode: true,
-            windowed_restore: None, last_fullscreen_flag: 0, render_target, save_readback: None,
+            layer_machine: SceneMachine { current_scene: self.scene },
+            #[cfg(feature = "gpu-render")]
+            window: None,
+            native_scale_factor: raster.0 as f64 / self.size.0 as f64,
+            #[cfg(feature = "gpu-render")]
+            pump_mode: true,
+            #[cfg(feature = "gpu-render")]
+            windowed_restore: None,
+            last_fullscreen_flag: 0, render_target, save_readback: None,
             prim_renderer: GpuPrimRenderer::new(resources.clone(), self.size), resources,
             surface: PresentationTarget::Embedded(final_target), surface_config,
             #[cfg(any(target_os = "ios", target_os = "android"))]
@@ -280,10 +271,25 @@ impl AppBuilder {
             #[cfg(target_os = "android")]
             android_native_window: None,
             virtual_size: self.size, render_tree: RenderTree::new(), dissolve_vertex_buffer, dissolve_index_buffer,
-            dissolve_num_indices: indices.len() as u32, debug_hud: None, hud_window: None, hud_surface: None,
-            hud_surface_config: None, hud_visible: false,
+            dissolve_num_indices: indices.len() as u32,
+            #[cfg(feature = "gpu-render")]
+            debug_hud: None,
+            #[cfg(feature = "gpu-render")]
+            hud_window: None,
+            #[cfg(feature = "gpu-render")]
+            hud_surface: None,
+            #[cfg(feature = "gpu-render")]
+            hud_surface_config: None,
+            #[cfg(feature = "gpu-render")]
+            hud_visible: false,
             debug_ring: log_ring::get().unwrap_or_else(|| log_ring::init(4096)), debug_frame_no: 0,
-            last_dt_ms: 0.0, hud_cursor_pos: None, hud_pointer_down: false, hud_scroll_delta_y: 0.0,
+            last_dt_ms: 0.0,
+            #[cfg(feature = "gpu-render")]
+            hud_cursor_pos: None,
+            #[cfg(feature = "gpu-render")]
+            hud_pointer_down: false,
+            #[cfg(feature = "gpu-render")]
+            hud_scroll_delta_y: 0.0,
             last_dissolve_type: DissolveType::None, last_dissolve2_transitioning: false,
             legacy_save_load_ui, exit_confirm_ui, builtin_exit_ui_enabled, pending_app_exit: false,
             #[cfg(feature = "subtitles")]

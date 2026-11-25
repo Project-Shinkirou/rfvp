@@ -1,69 +1,92 @@
 use crate::subsystem::world::GameData;
-#[cfg(feature = "no_std")]
-use alloc::{
-    boxed::Box,
-    format,
-    string::{String, ToString},
-    vec,
-    vec::Vec,
-};
-use winit::event::{MouseButton, WindowEvent};
+
+#[cfg(any(feature = "gpu-render", feature = "soft-render-desktop"))]
+mod winit_input;
+#[cfg(any(feature = "gpu-render", feature = "soft-render-desktop"))]
+pub(crate) use winit_input::from_window_event;
 
 use super::resources::input_manager::KeyCode;
 
-/// Update the engine input state from a winit [`WindowEvent`].
-///
-/// Winit reports cursor positions in *physical pixels* of the window. The original
-/// engine, however, uses the game's virtual resolution (the script/game coordinate
-/// space) for cursor hit-tests and input syscalls.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum MenuKey {
+    Escape,
+    Confirm,
+    Tab,
+    Fullscreen,
+    Left,
+    Right,
+    Up,
+    Down,
+    Home,
+    End,
+    PageUp,
+    PageDown,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum PointerButton {
+    Primary,
+    Secondary,
+    Other,
+}
+
+#[derive(Clone, Copy, Debug)]
+pub enum Wheel {
+    Lines(f32),
+    Pixels(f64),
+}
+
+#[derive(Clone, Debug)]
+pub enum Input {
+    Key {
+        physical: Option<MenuKey>,
+        logical: Option<KeyCode>,
+        pressed: bool,
+        repeat: bool,
+    },
+    PointerMove { x: f64, y: f64 },
+    PointerButton { button: PointerButton, pressed: bool },
+    Wheel(Wheel),
+    PointerEntered,
+    PointerLeft,
+    Focus(bool),
+    Other,
+}
+
+/// Update the engine input state from host events in physical pixels.
 ///
 /// Because we present the virtual render target into the window using an
 /// aspect-ratio-preserving scale + letterboxing (see `App::render_frame` present
 /// pass), we must apply the inverse transform here so that `cursor_x/cursor_y`
 /// match the coordinate space expected by `PrimHit` and all input syscalls.
 pub fn update_input_events(
-    window_event: &WindowEvent,
+    input: &Input,
     data: &mut GameData,
     surface_size: (u32, u32),
     virtual_size: (u32, u32),
 ) {
-    match window_event {
-        WindowEvent::KeyboardInput { event, .. } => {
-            match event.state {
-                winit::event::ElementState::Pressed => {
-                    data.inputs_manager
-                        .notify_keydown(event.logical_key.clone(), event.repeat);
-                }
-                winit::event::ElementState::Released => {
-                    data.inputs_manager.notify_keyup(event.logical_key.clone());
-                }
+    match input {
+        Input::Key { logical: Some(key), pressed, repeat, .. } => {
+            if *pressed {
+                data.inputs_manager.notify_keycode_down(key.clone(), *repeat);
+            } else {
+                data.inputs_manager.notify_keycode_up(key.clone());
             }
-            // Keep InputGetState/InputGetDown/InputGetUp usable even when the VM is
-            // advanced by an input signal (i.e. before the next frame boundary).
         }
-        WindowEvent::MouseInput { state, button, .. } => match state {
-            winit::event::ElementState::Pressed => {
-                if *button == MouseButton::Left {
-                    data.inputs_manager.notify_mouse_down(KeyCode::MouseLeft);
-                } else if *button == MouseButton::Right {
-                    data.inputs_manager.notify_mouse_down(KeyCode::MouseRight);
-                }
+        Input::PointerButton { button, pressed } => {
+            let key = match button {
+                PointerButton::Primary => KeyCode::MouseLeft,
+                PointerButton::Secondary => KeyCode::MouseRight,
+                PointerButton::Other => return,
+            };
+            if *pressed {
+                data.inputs_manager.notify_mouse_down(key);
+            } else {
+                data.inputs_manager.notify_mouse_up(key);
             }
-            winit::event::ElementState::Released => {
-                if *button == MouseButton::Left {
-                    data.inputs_manager.notify_mouse_up(KeyCode::MouseLeft);
-                } else if *button == MouseButton::Right {
-                    data.inputs_manager.notify_mouse_up(KeyCode::MouseRight);
-                }
-            }
-        },
-        WindowEvent::MouseWheel { delta, .. } => match delta {
-            winit::event::MouseScrollDelta::LineDelta(_, y) => {
-                data.inputs_manager.notify_mouse_wheel(*y as i32);
-            }
-            winit::event::MouseScrollDelta::PixelDelta(_) => {}
-        },
-        WindowEvent::CursorMoved { position, .. } => {
+        }
+        Input::Wheel(Wheel::Lines(y)) => data.inputs_manager.notify_mouse_wheel(*y as i32),
+        Input::PointerMove { x: px, y: py } => {
             // Map from window physical pixels -> virtual game pixels using the presented
             // content rectangle. WindowMode does not assign a special host presentation path
             // to internal render_flag==3 in this port.
@@ -76,8 +99,7 @@ pub fn update_input_events(
             let vw = vw_u.max(1) as f64;
             let vh = vh_u.max(1) as f64;
 
-            let px = position.x;
-            let py = position.y;
+            let (px, py) = (*px, *py);
 
             // Keep-aspect letterbox.
             let scale = (sw / vw).min(sh / vh);
@@ -104,13 +126,13 @@ pub fn update_input_events(
             // virtual content area (exclude letterboxed regions).
             data.inputs_manager.set_mouse_in(in_content);
         }
-        WindowEvent::CursorEntered { .. } => {
+        Input::PointerEntered => {
             data.inputs_manager.set_mouse_in(true);
         }
-        WindowEvent::CursorLeft { .. } => {
+        Input::PointerLeft => {
             data.inputs_manager.set_mouse_in(false);
         }
-        WindowEvent::Focused(focused) => {
+        Input::Focus(focused) => {
             // Original engine flushes input states on WM_ACTIVATEAPP.
             // Without this, we can keep stale pressed bits when focus transitions happen
             // (including the initial activation), which leads to unintended auto-click/skip.

@@ -28,7 +28,7 @@ use crate::{
     soft_render::{create_soft_renderer, PixelFormat, SoftFramebuffer, SoftRenderer},
     subsystem::{
         anzu_scene::AnzuScene,
-        event_handler::update_input_events,
+        event_handler::{from_window_event, update_input_events},
         resources::{
             motion_manager::DissolveType, thread_manager::ThreadManager, vfs::Vfs,
             window::Window as EngineWindow,
@@ -268,7 +268,7 @@ impl SoftHost {
     fn handle_window_event(&mut self, event: &WindowEvent, window_size: PhysicalSize<u32>) {
         let mut gd = gd_write(&self.game_data);
         update_input_events(
-            event,
+            &from_window_event(event),
             &mut gd,
             (window_size.width.max(1), window_size.height.max(1)),
             self.virtual_size,

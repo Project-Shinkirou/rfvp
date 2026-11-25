@@ -11,7 +11,6 @@
 
 use std::ffi::{c_char, c_void, CStr};
 use std::ptr::NonNull;
-use std::sync::Once;
 
 use anyhow::{Context, Result};
 
@@ -76,40 +75,19 @@ fn build_android_app(
         .context("build_android failed")
 }
 
-// ndk-context must be initialized from the JVM before any audio backend (CPAL/Oboe)
-// attempts to attach threads to JNI. We expose a tiny C ABI hook so the Java/JNI
-// layer can provide JavaVM* and a GlobalRef(android.content.Context).
-
-static ANDROID_CTX_ONCE: Once = Once::new();
-
-/// Initialize [`ndk_context`] (Android JVM context) for crates that rely on it (e.g. CPAL/Oboe).
+/// Bind Android audio for the standalone JNI host before creating the engine.
 ///
-/// This must be called **once** (idempotent on the Rust side) before creating the engine.
-///
-/// - `java_vm_ptr`: `JavaVM*` from JNI.
-/// - `context_ptr`: a JNI GlobalRef to an `android.content.Context` instance.
+/// # Safety
+/// Pass the process JavaVM and a global reference to its Application context.
+/// Both must stay valid for the life of the process.
 #[no_mangle]
 pub unsafe extern "C" fn rfvp_android_init_context(
     java_vm_ptr: *mut c_void,
     context_ptr: *mut c_void,
 ) {
-    if java_vm_ptr.is_null() {
-        log::error!("rfvp_android_init_context: java_vm_ptr is null");
-        return;
+    if !unsafe { crate::android_context::initialize(java_vm_ptr, context_ptr) } {
+        log::error!("rfvp_android_init_context: missing or conflicting Android context");
     }
-    if context_ptr.is_null() {
-        log::error!("rfvp_android_init_context: context_ptr is null");
-        return;
-    }
-
-    ANDROID_CTX_ONCE.call_once(|| {
-        // SAFETY: caller passes valid JNI pointers. We guard with `Once` so we don't
-        // re-initialize and panic inside ndk-context.
-        unsafe {
-            ndk_context::initialize_android_context(java_vm_ptr, context_ptr);
-        }
-        log::info!("rfvp_android_init_context: ndk_context initialized");
-    });
 }
 
 /// Create an Android host-driven instance.

@@ -3,7 +3,8 @@ use parking_lot::Mutex;
 use std::sync::{Arc, atomic::{AtomicBool, Ordering}, mpsc::{self, SyncSender, TrySendError}};
 use std::thread::{self, JoinHandle};
 use std::time::Instant;
-use winit::{event::WindowEvent, keyboard::{Key, PhysicalKey}};
+
+pub use crate::subsystem::event_handler::{Input, MenuKey, PointerButton, Wheel};
 
 pub struct Frame {
     pub pixels: Vec<u8>,
@@ -19,11 +20,6 @@ pub struct Snapshot {
     pub context_epoch: u64,
     pub error: Option<String>,
     pub frame: Option<Arc<Frame>>,
-}
-
-pub enum Input {
-    Key { physical: PhysicalKey, logical: Key, pressed: bool, repeat: bool },
-    Window(WindowEvent),
 }
 
 enum Command { Input { events: Vec<Input>, suspended: Option<bool> }, Pause(bool) }
@@ -52,8 +48,7 @@ pub trait Endpoint {
     /// Advances one native frame. `true` means the game itself ended the session.
     fn step(&mut self, elapsed: Duration) -> Result<bool>;
     fn set_paused(&mut self, paused: bool) -> Result<()>;
-    fn input_key(&mut self, physical: PhysicalKey, logical: Key, pressed: bool, repeat: bool);
-    fn input_window_event(&mut self, event: &WindowEvent);
+    fn input(&mut self, input: &Input);
     fn begin_capture(&mut self) -> Result<()>;
     fn poll_capture(&mut self, pixels: &mut Vec<u8>) -> Result<bool>;
     fn cancel_capture(&mut self);
@@ -136,11 +131,7 @@ impl NativeSession {
                             match command {
                                 Command::Input { events, suspended: window_suspended } => {
                                     for input in events {
-                                        match input {
-                                            Input::Key { physical, logical, pressed, repeat } =>
-                                                app.input_key(physical, logical, pressed, repeat),
-                                            Input::Window(event) => app.input_window_event(&event),
-                                        }
+                                        app.input(&input);
                                     }
                                     if let Some(value) = window_suspended { suspended = value; }
                                 }

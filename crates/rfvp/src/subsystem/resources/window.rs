@@ -6,10 +6,10 @@ use alloc::{
     vec,
     vec::Vec,
 };
-#[cfg(any(feature = "gpu-render", feature = "soft-render-desktop"))]
-pub type EngineCursorIcon = winit::window::CursorIcon;
+#[cfg(any(feature = "gpu-core", feature = "soft-render-desktop"))]
+pub type EngineCursorIcon = cursor_icon::CursorIcon;
 
-#[cfg(not(any(feature = "gpu-render", feature = "soft-render-desktop")))]
+#[cfg(not(any(feature = "gpu-core", feature = "soft-render-desktop")))]
 #[derive(Default, Debug, Copy, Clone, PartialEq, Eq)]
 pub enum EngineCursorIcon {
     #[default]

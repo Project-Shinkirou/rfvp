@@ -1,9 +1,7 @@
 use anyhow::{Context, Result};
 use std::{
     collections::HashMap,
-    fs::File,
     path::{Path, PathBuf},
-    slice::Windows,
     sync::{Arc, RwLock, RwLockReadGuard, RwLockWriteGuard},
 };
 
@@ -15,17 +13,19 @@ use crate::{
         Variant,
     },
     subsystem::resources::thread_manager::ThreadManager,
-    utils::ani::{self, icondir_to_custom_cursor, CursorBundle},
 };
 use glam::{mat4, vec3, vec4, Mat4};
 use image::{imageops::FilterType, RgbaImage};
 use regex::Regex;
 use wgpu::util::DeviceExt;
 
-use winit::{
-    dpi::{PhysicalPosition, PhysicalSize, Size},
-    window::CustomCursor,
-};
+#[cfg(feature = "gpu-render")]
+use crate::utils::ani::{self, icondir_to_custom_cursor, CursorBundle};
+#[cfg(feature = "gpu-render")]
+use std::fs::File;
+#[cfg(feature = "gpu-render")]
+use winit::dpi::{PhysicalPosition, PhysicalSize, Size};
+#[cfg(feature = "gpu-render")]
 use winit::{
     event::{Event, MouseButton, MouseScrollDelta, WindowEvent},
     event_loop::{ControlFlow, EventLoop},
@@ -33,10 +33,10 @@ use winit::{
     window::{Window, WindowAttributes},
 };
 
-#[cfg(any(target_os = "macos", target_os = "windows", target_os = "linux"))]
+#[cfg(all(feature = "gpu-render", any(target_os = "macos", target_os = "windows", target_os = "linux")))]
 use winit::platform::pump_events::{EventLoopExtPumpEvents, PumpStatus};
 
-#[cfg(target_arch = "wasm32")]
+#[cfg(all(feature = "gpu-render", target_arch = "wasm32"))]
 use winit::platform::web::WindowAttributesExtWebSys;
 
 use crate::rendering::render_tree::RenderTree;
@@ -47,30 +47,34 @@ use crate::rfvp_render::{BindGroupLayouts, GpuCommonResources, Pipelines, Render
 use crate::subsystem::scene::{Scene, SceneAction, SceneMachine};
 use crate::subsystem::scheduler::Scheduler;
 use crate::subsystem::world::GameData;
-use crate::{config::app_config::AppConfig, subsystem::event_handler::update_input_events};
+use crate::config::app_config::AppConfig;
+#[cfg(feature = "gpu-render")]
+use crate::subsystem::event_handler::{from_window_event, update_input_events};
 
 #[cfg(any(target_os = "ios", target_os = "android"))]
 use std::{ffi::c_void, ptr::NonNull};
 
 #[cfg(target_os = "android")]
+#[link(name = "android")]
 extern "C" {
     fn ANativeWindow_acquire(window: *mut c_void);
     fn ANativeWindow_release(window: *mut c_void);
 }
 
 #[cfg(target_os = "ios")]
-use winit::raw_window_handle::{
+use wgpu::rwh::{
     DisplayHandle, HandleError, HasDisplayHandle, HasWindowHandle, RawDisplayHandle,
     RawWindowHandle, UiKitDisplayHandle, UiKitWindowHandle, WindowHandle,
 };
 
 #[cfg(target_os = "android")]
-use winit::raw_window_handle::{
+use wgpu::rwh::{
     AndroidDisplayHandle, AndroidNdkWindowHandle, DisplayHandle, HandleError, HasDisplayHandle,
     HasWindowHandle, RawDisplayHandle, RawWindowHandle, WindowHandle,
 };
 
 use crate::debug_ui::log_ring::{self, LogRing};
+#[cfg(feature = "gpu-render")]
 use crate::debug_ui::{
     self,
     hud::{DebugHud, HudInput, HudSnapshot},
@@ -109,6 +113,7 @@ fn gd_write<'a>(gd: &'a Arc<RwLock<Box<GameData>>>) -> RwLockWriteGuard<'a, Box<
     }
 }
 
+#[cfg(feature = "gpu-render")]
 fn find_exact_game_video_mode(
     window: &Window,
     game_size: (u32, u32),
@@ -131,6 +136,7 @@ fn find_exact_game_video_mode(
     }
 }
 
+#[cfg(feature = "gpu-render")]
 #[derive(Clone, Copy, Debug)]
 struct WindowedRestoreState {
     size: PhysicalSize<u32>,
@@ -146,6 +152,7 @@ pub struct App {
     pending_vm_frame_ms_valid: bool,
     scheduler: Scheduler,
     layer_machine: SceneMachine,
+    #[cfg(feature = "gpu-render")]
     window: Option<Arc<Window>>,
 
     /// Scale factor provided by the host when no winit window exists (iOS host mode).
@@ -153,9 +160,11 @@ pub struct App {
 
     /// When true, the app is driven by an external host via `PumpInstance::pump()`.
     /// In this mode we must never block inside winit's event pumping.
+    #[cfg(feature = "gpu-render")]
     pump_mode: bool,
 
     // WindowMode support
+    #[cfg(feature = "gpu-render")]
     windowed_restore: Option<WindowedRestoreState>,
     last_fullscreen_flag: i32,
 
@@ -184,16 +193,24 @@ pub struct App {
     // ----------------------------
     // Debug HUD (FVP_TEST=1)
     // ----------------------------
+    #[cfg(feature = "gpu-render")]
     debug_hud: Option<DebugHud>,
+    #[cfg(feature = "gpu-render")]
     hud_window: Option<Arc<Window>>,
+    #[cfg(feature = "gpu-render")]
     hud_surface: Option<wgpu::Surface<'static>>,
+    #[cfg(feature = "gpu-render")]
     hud_surface_config: Option<wgpu::SurfaceConfiguration>,
+    #[cfg(feature = "gpu-render")]
     hud_visible: bool,
     debug_ring: Arc<LogRing>,
     debug_frame_no: u64,
     last_dt_ms: f32,
+    #[cfg(feature = "gpu-render")]
     hud_cursor_pos: Option<(f64, f64)>,
+    #[cfg(feature = "gpu-render")]
     hud_pointer_down: bool,
+    #[cfg(feature = "gpu-render")]
     hud_scroll_delta_y: f32,
     // Tracks dissolve completion on the main thread so we can wake contexts
     // waiting on DISSOLVE_WAIT immediately via an EngineEvent.
@@ -251,27 +268,24 @@ impl App {
     fn initialize_internal_resources(&mut self) {
         let mut gd = gd_write(&self.game_data);
 
+        #[cfg(feature = "gpu-render")]
         if let Some(window) = self.window.as_ref() {
             gd.set_window(crate::subsystem::resources::window::Window::new(
                 (window.inner_size().width, window.inner_size().height),
                 window.scale_factor(),
             ));
-        } else {
-            // Host-driven mode (iOS/Android): there is no winit window.
-            // Keep script-visible window size in the *virtual* coordinate space.
-            // Presentation scaling / letterboxing is handled separately in the render pass.
-            let (w, h) = (self.virtual_size.0.max(1), self.virtual_size.1.max(1));
-            gd.set_window(crate::subsystem::resources::window::Window::new(
-                (w, h),
-                1.0,
-            ));
+            return;
         }
+        // Keep script-visible dimensions in virtual space; presentation scales separately.
+        let (w, h) = (self.virtual_size.0.max(1), self.virtual_size.1.max(1));
+        gd.set_window(crate::subsystem::resources::window::Window::new((w, h), 1.0));
     }
     fn current_hidpi_scale(&self) -> f32 {
-        match self.window.as_ref() {
-            Some(w) => (w.scale_factor() as f32).max(1.0),
-            None => self.host_presentation_scale(),
+        #[cfg(feature = "gpu-render")]
+        if let Some(w) = self.window.as_ref() {
+            return (w.scale_factor() as f32).max(1.0);
         }
+        self.host_presentation_scale()
     }
 
     /// Pixel density actually needed by host-driven (iOS/Android) presentation.
@@ -320,10 +334,12 @@ impl App {
             );
         }
     }
+    #[cfg(feature = "gpu-render")]
     fn window(&self) -> &Arc<Window> {
         self.window.as_ref().expect("No window found")
     }
 
+    #[cfg(feature = "gpu-render")]
     fn debug_title(&mut self, x: i32, y: i32) {
         let title = self.title.clone();
         let (x, y, down, up) = {
@@ -345,11 +361,13 @@ impl App {
         }
     }
 
+    #[cfg(feature = "gpu-render")]
     fn debug_keydown(&self) -> String {
         let gd = gd_read(&self.game_data);
         gd.inputs_manager.get_hud_down().to_string()
     }
 
+    #[cfg(feature = "gpu-render")]
     fn debug_keyup(&self) -> String {
         let gd = gd_read(&self.game_data);
         gd.inputs_manager.get_hud_up().to_string()
@@ -377,6 +395,7 @@ impl App {
         }
     }
 
+    #[cfg(feature = "gpu-render")]
     fn handle_event(&mut self, event: Event<()>, loopd: &winit::event_loop::ActiveEventLoop) {
         // NOTE: In pump-mode we must not block inside winit, because the host (SwiftUI/Android/iOS)
         // drives the app by repeatedly calling `rfvp_pump_step()`.
@@ -484,8 +503,9 @@ impl App {
                     }
                     _ => {}
                 }
-                let consumed_by_exit_modal = self.exit_confirm_ui.handle_window_event(
-                    event,
+                let input = from_window_event(event);
+                let consumed_by_exit_modal = self.exit_confirm_ui.handle_input(
+                    &input,
                     (self.surface_config.width, self.surface_config.height),
                     self.virtual_size,
                 );
@@ -497,8 +517,8 @@ impl App {
                 } else {
                     let consumed_by_legacy_modal = {
                         let mut gd = gd_write(&self.game_data);
-                        self.legacy_save_load_ui.handle_window_event(
-                            event,
+                        self.legacy_save_load_ui.handle_input(
+                            &input,
                             (self.surface_config.width, self.surface_config.height),
                             self.virtual_size,
                             &mut **gd,
@@ -507,7 +527,7 @@ impl App {
                     if !consumed_by_legacy_modal {
                         let mut gd = gd_write(&self.game_data);
                         update_input_events(
-                            event,
+                            &input,
                             &mut **gd,
                             (self.surface_config.width, self.surface_config.height),
                             self.virtual_size,
@@ -602,6 +622,7 @@ impl App {
         }
     }
 
+    #[cfg(feature = "gpu-render")]
     fn run(mut self: Box<Self>, event_loop: EventLoop<()>) {
         let _result = event_loop.run(move |event, loopd| {
             self.handle_event(event, loopd);
@@ -610,6 +631,7 @@ impl App {
 
     /// With `RFVP_MEM_REPORT=1`, the memory the frame holds, to stderr every 300 redraws: GPU
     /// textures and render targets, and the CPU copies of pictures.
+    #[cfg(feature = "gpu-render")]
     fn mem_report(&mut self) {
         use std::sync::atomic::{AtomicU32, Ordering};
         static REDRAWS: AtomicU32 = AtomicU32::new(0);
@@ -781,18 +803,21 @@ impl App {
     }
 
     fn apply_window_mode_requests(&mut self) {
-        use winit::window::Fullscreen;
         if matches!(self.surface, PresentationTarget::Embedded(_)) {
             return; // The embedding platform bridge consumes and acknowledges this request.
         }
 
-        let requested = {
-            let mut gd = gd_write(&self.game_data);
-            gd.take_pending_render_flag()
-        };
-        let Some(flag) = requested else {
-            return;
-        };
+        let _requested = gd_write(&self.game_data).take_pending_render_flag();
+
+        #[cfg(feature = "gpu-render")]
+        if let Some(flag) = _requested {
+            self.apply_winit_window_mode(flag);
+        }
+    }
+
+    #[cfg(feature = "gpu-render")]
+    fn apply_winit_window_mode(&mut self, flag: i32) {
+        use winit::window::Fullscreen;
 
         let Some(w) = self.window.as_ref() else {
             // Host-driven iOS mode can run without a winit window; ignore WindowMode requests.
@@ -852,6 +877,7 @@ impl App {
         }
     }
 
+    #[cfg(feature = "gpu-render")]
     fn virtual_to_window_cursor_pos(
         &self,
         vx: i32,
@@ -876,6 +902,7 @@ impl App {
         PhysicalPosition::new(px, py)
     }
 
+    #[cfg(feature = "gpu-render")]
     fn update_cursor(&mut self) {
         let (
             cursor_frame,
@@ -1332,6 +1359,7 @@ impl App {
         Ok(())
     }
 
+    #[cfg(feature = "gpu-render")]
     fn set_hud_visible(&mut self, visible: bool) {
         self.hud_visible = visible;
         if let Some(w) = self.hud_window.as_ref() {
@@ -1342,11 +1370,13 @@ impl App {
         }
     }
 
+    #[cfg(feature = "gpu-render")]
     fn toggle_hud_window(&mut self) {
         let new_visible = !self.hud_visible;
         self.set_hud_visible(new_visible);
     }
 
+    #[cfg(feature = "gpu-render")]
     fn render_hud_frame(&mut self) -> anyhow::Result<()> {
         let (hud_surface, hud_cfg, hud_window) = match (
             self.hud_surface.as_ref(),
@@ -1699,6 +1729,7 @@ impl App {
         self.finish_frame();
 
         self.apply_window_mode_requests();
+        #[cfg(feature = "gpu-render")]
         self.update_cursor();
 
         self.pending_vm_frame_ms_valid = false;
@@ -1946,10 +1977,10 @@ impl App {
     /// `phase`: 0 = down, 2 = up, 3 = cancel/up.
     #[cfg(target_os = "ios")]
     pub fn host_key_ios(&mut self, key: i32, phase: i32) {
-        use winit::keyboard::{Key, NamedKey};
+        use crate::subsystem::resources::input_manager::KeyCode;
 
         let key_value = match key {
-            0 => Key::Named(NamedKey::Escape),
+            0 => KeyCode::Esc,
             _ => return,
         };
 
@@ -1960,8 +1991,8 @@ impl App {
         {
             let mut gd = gd_write(&self.game_data);
             match phase {
-                0 => gd.inputs_manager.notify_keydown(key_value.clone(), false),
-                2 | 3 => gd.inputs_manager.notify_keyup(key_value.clone()),
+                0 => gd.inputs_manager.notify_keycode_down(key_value, false),
+                2 | 3 => gd.inputs_manager.notify_keycode_up(key_value),
                 _ => {}
             }
         }
@@ -1977,17 +2008,17 @@ impl App {
     /// `phase`: 0 = down, 1 = up.
     #[cfg(target_os = "android")]
     pub fn host_key_android(&mut self, vk_code: i32, phase: i32) {
-        use winit::keyboard::{Key, NamedKey};
+        use crate::subsystem::resources::input_manager::KeyCode;
 
         let key = match vk_code {
-            0x1B => Key::Named(NamedKey::Escape),
-            0x0D => Key::Named(NamedKey::Enter),
-            0x20 => Key::Named(NamedKey::Space),
-            0x25 => Key::Named(NamedKey::ArrowLeft),
-            0x26 => Key::Named(NamedKey::ArrowUp),
-            0x27 => Key::Named(NamedKey::ArrowRight),
-            0x28 => Key::Named(NamedKey::ArrowDown),
-            0x11 => Key::Named(NamedKey::Control),
+            0x1B => KeyCode::Esc,
+            0x0D => KeyCode::Enter,
+            0x20 => KeyCode::Space,
+            0x25 => KeyCode::LeftArrow,
+            0x26 => KeyCode::UpArrow,
+            0x27 => KeyCode::RightArrow,
+            0x28 => KeyCode::DownArrow,
+            0x11 => KeyCode::Ctrl,
             _ => return,
         };
 
@@ -1998,8 +2029,8 @@ impl App {
         {
             let mut gd = gd_write(&self.game_data);
             match phase {
-                0 => gd.inputs_manager.notify_keydown(key, false),
-                1 => gd.inputs_manager.notify_keyup(key),
+                0 => gd.inputs_manager.notify_keycode_down(key, false),
+                1 => gd.inputs_manager.notify_keycode_up(key),
                 _ => {}
             }
         }
@@ -2336,6 +2367,7 @@ impl AppBuilder {
         self
     }
 
+    #[cfg(feature = "gpu-render")]
     async fn init_render(
         window: Arc<Window>,
         hud_window: Option<Arc<Window>>,
@@ -2674,6 +2706,7 @@ impl AppBuilder {
     ///
     /// This is used by both the classic blocking `run()` and the "pump" mode used by GUI hosts
     /// (e.g. SwiftUI launchers) that already own the platform main loop.
+    #[cfg(feature = "gpu-render")]
     pub fn build(mut self) -> anyhow::Result<Box<BuiltApp>> {
         let event_loop = EventLoop::new().context("Event loop could not be created")?;
         event_loop.set_control_flow(ControlFlow::Poll);
@@ -2975,7 +3008,7 @@ impl AppBuilder {
         Ok(Box::new(BuiltApp { event_loop, app }))
     }
 
-    #[cfg(target_arch = "wasm32")]
+    #[cfg(all(feature = "gpu-render", target_arch = "wasm32"))]
     pub async fn build_web(mut self, canvas_id: &str) -> anyhow::Result<Box<BuiltApp>> {
         use wasm_bindgen::JsCast;
 
@@ -3159,7 +3192,7 @@ impl AppBuilder {
         Ok(Box::new(BuiltApp { event_loop, app }))
     }
 
-    #[cfg(target_arch = "wasm32")]
+    #[cfg(all(feature = "gpu-render", target_arch = "wasm32"))]
     pub async fn run_web(self, canvas_id: &str) -> anyhow::Result<()> {
         let built = self.build_web(canvas_id).await?;
         built.run();
@@ -3167,13 +3200,14 @@ impl AppBuilder {
     }
 
     /// Classic blocking run (winit owns the main loop).
+    #[cfg(feature = "gpu-render")]
     pub fn run(self) {
         let built = self.build().expect("failed to build rfvp app");
         built.run();
     }
 
     /// Build an instance that can be driven by `pump_events`.
-    #[cfg(any(target_os = "macos", target_os = "windows", target_os = "linux"))]
+    #[cfg(all(feature = "gpu-render", any(target_os = "macos", target_os = "windows", target_os = "linux")))]
     pub fn build_pump(self) -> anyhow::Result<PumpInstance> {
         Ok(self.build()?.into_pump())
     }
@@ -3304,10 +3338,14 @@ impl AppBuilder {
                 ptr::addr_of_mut!((*p).title).write(self.title);
                 ptr::addr_of_mut!((*p).scheduler).write(self.scheduler);
                 ptr::addr_of_mut!((*p).layer_machine).write(layer_machine);
+                #[cfg(feature = "gpu-render")]
                 ptr::addr_of_mut!((*p).window).write(None);
                 ptr::addr_of_mut!((*p).native_scale_factor).write(scale);
-                ptr::addr_of_mut!((*p).pump_mode).write(true);
-                ptr::addr_of_mut!((*p).windowed_restore).write(None);
+                #[cfg(feature = "gpu-render")]
+                {
+                    ptr::addr_of_mut!((*p).pump_mode).write(true);
+                    ptr::addr_of_mut!((*p).windowed_restore).write(None);
+                }
                 ptr::addr_of_mut!((*p).last_fullscreen_flag).write(1);
 
                 ptr::addr_of_mut!((*p).vm_worker).write(vm_worker);
@@ -3347,18 +3385,24 @@ impl AppBuilder {
                 ptr::addr_of_mut!((*p).pending_app_exit).write(false);
 
                 // HUD is disabled in iOS host mode.
-                ptr::addr_of_mut!((*p).debug_hud).write(None);
-                ptr::addr_of_mut!((*p).hud_window).write(None);
-                ptr::addr_of_mut!((*p).hud_surface).write(None);
-                ptr::addr_of_mut!((*p).hud_surface_config).write(None);
-                ptr::addr_of_mut!((*p).hud_visible).write(false);
+                #[cfg(feature = "gpu-render")]
+                {
+                    ptr::addr_of_mut!((*p).debug_hud).write(None);
+                    ptr::addr_of_mut!((*p).hud_window).write(None);
+                    ptr::addr_of_mut!((*p).hud_surface).write(None);
+                    ptr::addr_of_mut!((*p).hud_surface_config).write(None);
+                    ptr::addr_of_mut!((*p).hud_visible).write(false);
+                }
 
                 ptr::addr_of_mut!((*p).debug_ring).write(debug_ring.clone());
                 ptr::addr_of_mut!((*p).debug_frame_no).write(0);
                 ptr::addr_of_mut!((*p).last_dt_ms).write(0.0);
-                ptr::addr_of_mut!((*p).hud_cursor_pos).write(None);
-                ptr::addr_of_mut!((*p).hud_pointer_down).write(false);
-                ptr::addr_of_mut!((*p).hud_scroll_delta_y).write(0.0);
+                #[cfg(feature = "gpu-render")]
+                {
+                    ptr::addr_of_mut!((*p).hud_cursor_pos).write(None);
+                    ptr::addr_of_mut!((*p).hud_pointer_down).write(false);
+                    ptr::addr_of_mut!((*p).hud_scroll_delta_y).write(0.0);
+                }
 
                 let raw: *mut App = Box::into_raw(boxed).cast();
                 Box::from_raw(raw)
@@ -3501,10 +3545,14 @@ impl AppBuilder {
                 ptr::addr_of_mut!((*p).title).write(self.title);
                 ptr::addr_of_mut!((*p).scheduler).write(self.scheduler);
                 ptr::addr_of_mut!((*p).layer_machine).write(layer_machine);
+                #[cfg(feature = "gpu-render")]
                 ptr::addr_of_mut!((*p).window).write(None);
                 ptr::addr_of_mut!((*p).native_scale_factor).write(scale);
-                ptr::addr_of_mut!((*p).pump_mode).write(true);
-                ptr::addr_of_mut!((*p).windowed_restore).write(None);
+                #[cfg(feature = "gpu-render")]
+                {
+                    ptr::addr_of_mut!((*p).pump_mode).write(true);
+                    ptr::addr_of_mut!((*p).windowed_restore).write(None);
+                }
                 ptr::addr_of_mut!((*p).last_fullscreen_flag).write(1);
 
                 ptr::addr_of_mut!((*p).vm_worker).write(vm_worker);
@@ -3545,18 +3593,24 @@ impl AppBuilder {
                 ptr::addr_of_mut!((*p).pending_app_exit).write(false);
 
                 // HUD is disabled in Android host mode.
-                ptr::addr_of_mut!((*p).debug_hud).write(None);
-                ptr::addr_of_mut!((*p).hud_window).write(None);
-                ptr::addr_of_mut!((*p).hud_surface).write(None);
-                ptr::addr_of_mut!((*p).hud_surface_config).write(None);
-                ptr::addr_of_mut!((*p).hud_visible).write(false);
+                #[cfg(feature = "gpu-render")]
+                {
+                    ptr::addr_of_mut!((*p).debug_hud).write(None);
+                    ptr::addr_of_mut!((*p).hud_window).write(None);
+                    ptr::addr_of_mut!((*p).hud_surface).write(None);
+                    ptr::addr_of_mut!((*p).hud_surface_config).write(None);
+                    ptr::addr_of_mut!((*p).hud_visible).write(false);
+                }
 
                 ptr::addr_of_mut!((*p).debug_ring).write(debug_ring.clone());
                 ptr::addr_of_mut!((*p).debug_frame_no).write(0);
                 ptr::addr_of_mut!((*p).last_dt_ms).write(0.0);
-                ptr::addr_of_mut!((*p).hud_cursor_pos).write(None);
-                ptr::addr_of_mut!((*p).hud_pointer_down).write(false);
-                ptr::addr_of_mut!((*p).hud_scroll_delta_y).write(0.0);
+                #[cfg(feature = "gpu-render")]
+                {
+                    ptr::addr_of_mut!((*p).hud_cursor_pos).write(None);
+                    ptr::addr_of_mut!((*p).hud_pointer_down).write(false);
+                    ptr::addr_of_mut!((*p).hud_scroll_delta_y).write(0.0);
+                }
 
                 let raw: *mut App = Box::into_raw(boxed).cast();
                 Box::from_raw(raw)
@@ -3571,11 +3625,13 @@ impl AppBuilder {
 }
 
 /// A fully-built application bundle.
+#[cfg(feature = "gpu-render")]
 pub struct BuiltApp {
     pub event_loop: EventLoop<()>,
     pub app: Box<App>,
 }
 
+#[cfg(feature = "gpu-render")]
 impl BuiltApp {
     pub fn run(self) {
         self.app.run(self.event_loop);
@@ -3593,13 +3649,13 @@ impl BuiltApp {
 }
 
 /// A pump-driven instance (for GUI hosts that already own the platform event loop).
-#[cfg(any(target_os = "macos", target_os = "windows", target_os = "linux"))]
+#[cfg(all(feature = "gpu-render", any(target_os = "macos", target_os = "windows", target_os = "linux")))]
 pub struct PumpInstance {
     event_loop: EventLoop<()>,
     app: Box<App>,
 }
 
-#[cfg(any(target_os = "macos", target_os = "windows", target_os = "linux"))]
+#[cfg(all(feature = "gpu-render", any(target_os = "macos", target_os = "windows", target_os = "linux")))]
 impl PumpInstance {
     pub fn set_text_hidpi_enabled(&mut self, enabled: bool) {
         self.app.set_text_hidpi_enabled(enabled);

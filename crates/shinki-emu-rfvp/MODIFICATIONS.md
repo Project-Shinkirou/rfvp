@@ -8,7 +8,7 @@
 - `shinki` 分支 = 通用原生修复基线 `3359d8fbea3c53d6d262a9f71b6d4d79888c2368` + 一个适配提交 `feat(shinki): ShinkiEMU C ABI v3 adapter shinki-emu-rfvp`。基线含原生生命周期修复 `7e2016a0e0ef1c0b102185914cc7a8459bb2c9e1` 与原生音频 worker 所有权接入，与适配分开。
 - 适配提交合并了此前的 C ABI v3 移植、原偏移翻译表、movie/BGM ASS 字幕、读档 epoch 修复、ABI pin 与 plugin ID 更名；合并前的历史保留在 [`1e947a5ccbd2c7a698bd30d48347454ef1b908a9`](https://github.com/Project-Shinkirou/rfvp/commit/1e947a5ccbd2c7a698bd30d48347454ef1b908a9) 等旧引用中，旧 tree 不代表当前构建源码。
 - 适配包为 `crates/shinki-emu-rfvp`（package `shinki-emu-rfvp`，lib `shinki_emu_rfvp`），是 ShinkiEMU 唯一的 RFVP 适配。
-- 适配包的 `shinki-emu-abi`（C ABI v3）与构建辅助 `shinki-emu-build` 固定 `Project-Shinkirou/ShinkiEMU@cb8d9dd22d7d0ab129085b324c94d6dc81fa19e3`；原生 `rfvp` 的可选 `roukaku-subtitle` 固定 `Project-Shinkirou/RoukakuEngine@8392cf161800f7684af7704eb95f7a5526d2015d`，与宿主 SDK 使用同一来源，避免重复的 `links=roukaku_subtitle_ass`。该依赖要求 Rust 1.99.1。
+- 适配包的 ABI v3 依赖 `shinki-emu-abi` 固定在 ShinkiEMU `67f9c7cdd7a47de1fce75763aede958678c46d98`，构建辅助 `shinki-emu-build` 固定在 `9cd899babbb54cbc84c3e9fbddfe192c2f9200c8`。`roukaku-subtitle` 与宿主 SDK 共用 `Project-Shinkirou/RoukakuEngine@c8f94895ab8281c33a4c1b0a4d25afd5eeaca224`，避免重复的 `links=roukaku_subtitle_ass`。
 - Kira 运行层保持 0.10.8，固定 [`Project-Shinkirou/kira@d2f10db15d9c451c7b2fd33043ae7732e75bee5d`](https://github.com/Project-Shinkirou/kira/commit/d2f10db15d9c451c7b2fd33043ae7732e75bee5d)，不改 mixer 运行实现；workspace `[patch.crates-io]` 的 CPAL 0.15.3 固定 `Project-Shinkirou/cpal@65ac8a6ac1a635cc26bfc5af331295b052044908`。
 
 ## 适配内容
@@ -60,6 +60,8 @@ cargo xtask build --target x86_64-pc-windows-msvc --core rfvp --release
 独立构建使用 `cargo build --locked --release -p shinki-emu-rfvp --features dynamic-plugin-export`，并设置 `ROUKAKU_SUBTITLE_VCPKG_ROOT`，指向安装了 overlay triplet `x64-windows-static-md-dynbidi` 的独立 vcpkg 树。产物为所选 Cargo target 目录内的 `shinki_emu_rfvp.dll`，导出 `shinki_emu_query`。
 
 Apple 构建继续使用 `rlib`（iOS 静态嵌入）及 `cdylib`（macOS `.dylib`）。只有 `dynamic-plugin-export` 导出未修饰的查询符号；静态嵌入直接调用 Rust 路径。字幕使用同一固定版本 libass 0.17.5 的目标专属静态 vcpkg 安装；WMV/MPEG 解码器为 Rust 原生实现，Apple 不需要 GStreamer。
+
+Android 动态核心通过 `gpu-core` 复用原生 App、VM、音视频、游戏 UI 和离屏 GPU 渲染，无需链接 Winit 或 `android-activity`。桌面入口继续在 Winit 边界转换事件；嵌入入口直接传递原生输入。宿主显式激活时先通过 ABI v3 的 `shinki.emu.android_context` v1 传入进程 JavaVM 和 Application 全局引用，再初始化核心。相同指针可以重复绑定；绑定失败时拒绝启动，查询函数本身不启动音频。
 
 macOS 的可选 `RFVP_MEM_REPORT` 指标使用 wgpu 30 的 `as_hal::<Metal>()` 只读设备 guard，在 guard 存活期间通过原生 `MTLDevice::currentAllocatedSize()` 读取实际设备分配量。`objc2-metal` 仅为 macOS 显式导入已锁定的 0.3.2 协议 trait；不改变 Windows/Linux 依赖版本、原生执行、字体或脚本身份语义。
 

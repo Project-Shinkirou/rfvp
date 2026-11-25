@@ -1055,10 +1055,10 @@ pub use no_std_core::{
     RfvpTickResult,
 };
 
-#[cfg(all(not(feature = "no_std"), feature = "gpu-render"))]
+#[cfg(all(not(feature = "no_std"), feature = "gpu-core"))]
 pub mod app;
 pub mod audio_player;
-#[cfg(all(not(feature = "no_std"), feature = "gpu-render"))]
+#[cfg(all(not(feature = "no_std"), feature = "gpu-core"))]
 pub mod boot;
 #[cfg(not(feature = "no_std"))]
 pub mod config;
@@ -1081,10 +1081,10 @@ pub mod debug_ui {
         }
     }
 }
-#[cfg(all(not(feature = "no_std"), feature = "gpu-render"))]
+#[cfg(all(not(feature = "no_std"), feature = "gpu-core"))]
 pub mod exit_confirm_ui;
 pub mod font;
-#[cfg(all(not(feature = "no_std"), feature = "gpu-render"))]
+#[cfg(all(not(feature = "no_std"), feature = "gpu-core"))]
 pub mod legacy_save_load_ui;
 #[cfg(feature = "subtitles")]
 mod subtitles;
@@ -1094,7 +1094,7 @@ pub mod rendering;
 pub mod rfvp_audio;
 #[cfg(all(not(feature = "no_std"), feature = "rfvp-os"))]
 pub mod rfvp_os_host;
-#[cfg(any(feature = "hosted-gpu", all(not(feature = "no_std"), feature = "gpu-render")))]
+#[cfg(any(feature = "hosted-gpu", all(not(feature = "no_std"), feature = "gpu-core")))]
 pub mod rfvp_render;
 pub mod script;
 #[cfg(all(not(feature = "no_std"), feature = "soft-render-desktop"))]
@@ -1132,7 +1132,9 @@ pub mod wasm_entry;
 #[cfg(all(not(feature = "no_std"), target_os = "ios"))]
 mod ios_host;
 
-#[cfg(all(not(feature = "no_std"), target_os = "android"))]
+#[cfg(all(not(feature = "no_std"), target_os = "android", feature = "gpu-core"))]
+pub mod android_context;
+#[cfg(all(not(feature = "no_std"), target_os = "android", feature = "gpu-render"))]
 mod android_host;
 
 #[cfg(all(not(feature = "no_std"), feature = "gpu-render"))]

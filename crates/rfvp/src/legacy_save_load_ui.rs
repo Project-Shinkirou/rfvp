@@ -3,10 +3,7 @@ use anyhow::Result;
 use glam::{Mat4, Vec2, Vec3, Vec4};
 use image::{DynamicImage, Rgba, RgbaImage};
 use wgpu::util::DeviceExt;
-use winit::{
-    event::{MouseButton, WindowEvent},
-    keyboard::{KeyCode, PhysicalKey},
-};
+use crate::subsystem::event_handler::{Input, MenuKey, PointerButton, Wheel};
 
 use crate::{
     rfvp_render::pipelines::sprite::SpritePipeline,
@@ -165,24 +162,23 @@ impl LegacySaveLoadUi {
         self.hover_cancel = false;
     }
 
-    pub fn handle_key(&mut self, key: PhysicalKey, pressed: bool, repeat: bool, game: &mut GameData) -> bool {
+    fn handle_key(&mut self, key: Option<MenuKey>, pressed: bool, repeat: bool, game: &mut GameData) -> bool {
         if !self.active {
             return false;
         }
         if pressed && !repeat {
             match key {
-                PhysicalKey::Code(KeyCode::Escape) => self.close(),
-                PhysicalKey::Code(KeyCode::Enter | KeyCode::NumpadEnter | KeyCode::Space) =>
-                    self.confirm(game),
-                PhysicalKey::Code(KeyCode::ArrowUp) => self.move_row(-1),
-                PhysicalKey::Code(KeyCode::ArrowDown) => self.move_row(1),
-                PhysicalKey::Code(KeyCode::ArrowLeft | KeyCode::PageUp) => self.move_page(-1),
-                PhysicalKey::Code(KeyCode::ArrowRight | KeyCode::PageDown) => self.move_page(1),
-                PhysicalKey::Code(KeyCode::Home) => {
+                Some(MenuKey::Escape) => self.close(),
+                Some(MenuKey::Confirm) => self.confirm(game),
+                Some(MenuKey::Up) => self.move_row(-1),
+                Some(MenuKey::Down) => self.move_row(1),
+                Some(MenuKey::Left | MenuKey::PageUp) => self.move_page(-1),
+                Some(MenuKey::Right | MenuKey::PageDown) => self.move_page(1),
+                Some(MenuKey::Home) => {
                     self.selected_row = 0;
                     self.dirty = true;
                 }
-                PhysicalKey::Code(KeyCode::End) => {
+                Some(MenuKey::End) => {
                     self.selected_row = UI_ROWS_PER_PAGE.saturating_sub(1);
                     self.dirty = true;
                 }
@@ -192,9 +188,9 @@ impl LegacySaveLoadUi {
         true
     }
 
-    pub fn handle_window_event(
+    pub fn handle_input(
         &mut self,
-        event: &WindowEvent,
+        input: &Input,
         surface_size: (u32, u32),
         virtual_size: (u32, u32),
         game: &mut GameData,
@@ -203,13 +199,13 @@ impl LegacySaveLoadUi {
             return false;
         }
 
-        match event {
-            WindowEvent::KeyboardInput { event, .. } => {
-                return self.handle_key(event.physical_key, event.state.is_pressed(), event.repeat, game);
+        match input {
+            Input::Key { physical, pressed, repeat, .. } => {
+                return self.handle_key(*physical, *pressed, *repeat, game);
             }
-            WindowEvent::CursorMoved { position, .. } => {
+            Input::PointerMove { x, y } => {
                 if let Some((vx, vy)) =
-                    map_window_to_virtual(position.x, position.y, surface_size, virtual_size)
+                    map_window_to_virtual(*x, *y, surface_size, virtual_size)
                 {
                     let hover = self.hit_test_row(vx, vy, virtual_size);
                     let hover_cancel = Self::hit_test_cancel_button(vx, vy, virtual_size);
@@ -225,8 +221,8 @@ impl LegacySaveLoadUi {
                 }
                 return true;
             }
-            WindowEvent::MouseInput { state, button, .. } => {
-                if *button != MouseButton::Left || !state.is_pressed() {
+            Input::PointerButton { button, pressed } => {
+                if *button != PointerButton::Primary || !*pressed {
                     return true;
                 }
                 if self.hover_cancel {
@@ -240,26 +236,19 @@ impl LegacySaveLoadUi {
                 }
                 return true;
             }
-            WindowEvent::MouseWheel { delta, .. } => {
-                match delta {
-                    winit::event::MouseScrollDelta::LineDelta(_, y) => {
-                        if *y > 0.0 {
-                            self.move_row(-1);
-                        } else if *y < 0.0 {
-                            self.move_row(1);
-                        }
-                    }
-                    winit::event::MouseScrollDelta::PixelDelta(pos) => {
-                        if pos.y > 0.0 {
-                            self.move_row(-1);
-                        } else if pos.y < 0.0 {
-                            self.move_row(1);
-                        }
-                    }
+            Input::Wheel(delta) => {
+                let y = match delta {
+                    Wheel::Lines(y) => f64::from(*y),
+                    Wheel::Pixels(y) => *y,
+                };
+                if y > 0.0 {
+                    self.move_row(-1);
+                } else if y < 0.0 {
+                    self.move_row(1);
                 }
                 return true;
             }
-            WindowEvent::CursorEntered { .. } | WindowEvent::CursorLeft { .. } => {
+            Input::PointerEntered | Input::PointerLeft => {
                 self.hover_row = None;
                 self.hover_cancel = false;
                 self.dirty = true;
