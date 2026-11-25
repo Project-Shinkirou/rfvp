@@ -4637,6 +4637,7 @@ dependencies = [
  "core_maths",
  "cpal",
  "crossbeam-channel",
+ "cursor-icon",
  "egui",
  "egui-wgpu",
  "encoding_rs",
@@ -5214,7 +5215,6 @@ dependencies = [
  "rfvp",
  "shinki-emu-abi",
  "shinki-emu-build",
- "winit 0.30.13",
 ]
 
 [[package]]
